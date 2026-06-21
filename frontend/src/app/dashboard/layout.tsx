@@ -79,8 +79,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       `}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-5 border-b border-dark-border">
-          <div className="flex-shrink-0 w-10 h-10 bg-primary-600/20 rounded-xl border border-primary-500/30 flex items-center justify-center">
-            <Scale className="w-5 h-5 text-primary-400" />
+          <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center">
+            <img src="/images/logo.png" alt="Lawyer Tech Logo" className="w-full h-full object-contain" />
           </div>
           {sidebarOpen && (
             <div className="min-w-0">

@@ -310,8 +310,8 @@ export default function SuperAdminPage() {
         <div className="w-full max-w-md">
           {/* Logo Title */}
           <div className="flex flex-col items-center justify-center mb-8">
-            <div className="w-16 h-16 bg-indigo-600/20 rounded-3xl border border-indigo-500/30 flex items-center justify-center mb-4">
-              <Shield className="w-8 h-8 text-indigo-400" />
+            <div className="w-16 h-16 flex items-center justify-center mb-4">
+              <img src="/images/logo.png" alt="Lawyer Tech Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-3xl font-bold text-white tracking-wider flex items-center gap-2">
               SaaS <span className="gradient-text">SuperAdmin</span>
@@ -381,8 +381,8 @@ export default function SuperAdminPage() {
         <div className="space-y-8">
           {/* Logo Section */}
           <div className="flex items-center gap-3 py-2 border-b border-white/5">
-            <div className="w-10 h-10 bg-indigo-600/20 rounded-xl border border-indigo-500/30 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/images/logo.png" alt="Lawyer Tech Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h2 className="font-bold text-white text-sm">SuperAdmin</h2>

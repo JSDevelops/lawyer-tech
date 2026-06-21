@@ -48,8 +48,8 @@ export default function LoginPage() {
         
         <div className="relative z-10 flex flex-col items-center justify-center w-full p-12 text-center">
           {/* Logo */}
-          <div className="flex items-center justify-center w-24 h-24 bg-primary-600/20 rounded-3xl border border-primary-500/30 mb-8">
-            <Scale className="w-12 h-12 text-primary-400" />
+          <div className="flex items-center justify-center w-24 h-24 mb-8">
+            <img src="/images/logo.png" alt="Lawyer Tech Logo" className="w-full h-full object-contain" />
           </div>
           
           <div className="thai-flag-accent w-24 mb-6" />
@@ -85,11 +85,11 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-primary-600/20 rounded-xl border border-primary-500/30 flex items-center justify-center">
-              <Scale className="w-5 h-5 text-primary-400" />
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/images/logo.png" alt="Lawyer Tech Logo" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h2 className="font-bold text-white">Lawyer Tech ERP</h2>
+              <h2 className="font-bold text-white leading-tight">Lawyer Tech ERP</h2>
               <p className="text-xs text-slate-500">ระบบบริหารสำนักงานกฎหมาย</p>
             </div>
           </div>
