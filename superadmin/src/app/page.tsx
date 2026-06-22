@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   Scale, Users, Building, CreditCard, LogOut,
   Plus, Trash2, Edit, Check, X, Loader2, Shield,
-  Layers, Settings, BarChart2, Activity, Database, AlertCircle, Sparkles, Key
+  Layers, Settings, BarChart2, Activity, Database, AlertCircle, Sparkles, Key, Mail
 } from 'lucide-react'
 import toast, { Toaster } from 'react-hot-toast'
 
@@ -88,7 +88,23 @@ export default function SuperAdminPage() {
     smtp_port: 587,
     smtp_user: '',
     smtp_password: '',
+    
     gemini_api_key_override: '',
+    gemini_model: 'gemini-1.5-pro',
+    openai_api_key: '',
+    openai_model: 'gpt-4o',
+    
+    bank_name: 'ธนาคารกสิกรไทย',
+    bank_account_name: 'บริษัท เลเยอร์ เทค จำกัด',
+    bank_account_number: '',
+    promptpay_id: '',
+    enable_bank_transfer: true,
+    
+    stripe_publishable_key: '',
+    stripe_secret_key: '',
+    stripe_webhook_secret: '',
+    enable_stripe: false,
+    
     maintenance_mode: false,
     allow_new_registrations: true
   })
@@ -1030,143 +1046,128 @@ export default function SuperAdminPage() {
               </div>
             </div>
           )}
-
           {/* VIEW: SaaS TRANSACTIONS */}
           {activeTab === 'transactions' && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex justify-between items-center">
-                <p className="text-xs text-slate-400">ประวัติการทำธุรกรรมค่าบริการรายเดือน/รายปี และการส่งอีเมลใบเสร็จ</p>
+                <p className="text-xs text-slate-400">ประวัติการชำระเงินและธุรกรรมของระบบ SaaS ทั้งหมด</p>
                 <button
-                  onClick={() => {
-                    setNewTransaction({
-                      tenant_id: tenants.length > 0 ? tenants[0].id : '',
-                      plan_id: plans.length > 0 ? plans[0].id : '',
-                      amount: plans.length > 0 ? plans[0].price : 0,
-                      billing_cycle: 'monthly',
-                      payment_status: 'paid',
-                      payment_method: 'manual_override'
-                    })
-                    setShowTransactionModal(true)
-                  }}
-                  className="btn-primary py-2 px-3 text-xs flex items-center gap-1.5"
+                  onClick={() => setShowTransactionModal(true)}
+                  className="btn-primary flex items-center gap-1.5 text-xs font-semibold py-2"
                 >
                   <Plus className="w-4 h-4" />
-                  บันทึกธุรกรรมใหม่ (Manual)
+                  บันทึกธุรกรรมแบบกำหนดเอง
                 </button>
               </div>
 
-              {/* Transactions Table */}
-              <div className="card overflow-x-auto p-0 border border-white/5">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>เลขที่ธุรกรรม</th>
-                      <th>สำนักงาน</th>
-                      <th>แพ็กเกจ</th>
-                      <th>รอบบิล</th>
-                      <th>ยอดชำระ</th>
-                      <th>วิธีชำระเงิน</th>
-                      <th>สถานะ</th>
-                      <th>วันเวลาที่ชำระ</th>
-                      <th>การจัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map(tx => (
-                      <tr key={tx.id} className="hover:bg-white/[0.02]">
-                        <td className="font-mono text-xs text-indigo-300 font-semibold">{tx.invoice_number}</td>
-                        <td>
-                          <div>
-                            <span className="font-semibold text-white block">{tx.tenant_name}</span>
-                            <span className="text-[10px] text-slate-500">{tx.tenant_subdomain}.lawyertech.co.th</span>
-                          </div>
-                        </td>
-                        <td className="text-slate-300 text-xs font-semibold">{tx.plan_name}</td>
-                        <td>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${tx.billing_cycle === 'yearly' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'}`}>
-                            {tx.billing_cycle === 'yearly' ? 'รายปี' : 'รายเดือน'}
-                          </span>
-                        </td>
-                        <td className="text-emerald-400 font-bold">{(tx.amount || 0).toLocaleString()} ฿</td>
-                        <td className="text-slate-400 text-xs">
-                          {tx.payment_method === 'bank_transfer' && 'โอนเงินผ่านธนาคาร'}
-                          {tx.payment_method === 'credit_card' && 'บัตรเครดิต'}
-                          {tx.payment_method === 'manual_override' && 'ปรับเปลี่ยนโดยแอดมิน'}
-                        </td>
-                        <td>
-                          <span className={`badge ${
-                            tx.payment_status === 'paid' ? 'badge-active' : 
-                            tx.payment_status === 'pending' ? 'badge-suspended' : 'badge-suspended bg-red-500/10 text-red-400'
-                          }`}>
-                            {tx.payment_status === 'paid' && 'สำเร็จ'}
-                            {tx.payment_status === 'pending' && 'รอตรวจสอบ'}
-                            {tx.payment_status === 'failed' && 'ล้มเหลว'}
-                          </span>
-                        </td>
-                        <td className="text-slate-500 text-xs">
-                          {tx.payment_date ? new Date(tx.payment_date).toLocaleString('th-TH') : 'ไม่ระบุ'}
-                        </td>
-                        <td>
-                          <button
-                            onClick={() => handleResendEmail(tx.id)}
-                            className="btn-secondary py-1 px-2.5 text-xs flex items-center gap-1 hover:border-indigo-500/40 hover:text-white"
-                            disabled={loading}
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                            ส่งอีเมลอีกครั้ง
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {transactions.length === 0 && (
+              <div className="card p-0 overflow-hidden border border-white/5 bg-slate-950/40">
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
                       <tr>
-                        <td colSpan={9} className="text-center py-8 text-slate-500 italic text-xs">
-                          ยังไม่มีประวัติรายการทำธุรกรรมใดๆ ในระบบ
-                        </td>
+                        <th>เลขที่ใบเสร็จ</th>
+                        <th>สำนักงาน (Tenant)</th>
+                        <th>แพ็กเกจ</th>
+                        <th>ค่าบริการ</th>
+                        <th>รอบบิล</th>
+                        <th>ช่องทางชำระเงิน</th>
+                        <th>สถานะการชำระ</th>
+                        <th>วันที่ชำระเงิน</th>
+                        <th>การจัดการ</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {transactions.map(tx => (
+                        <tr key={tx.id} className="hover:bg-white/[0.02]">
+                          <td className="font-mono text-xs text-white">{tx.invoice_number}</td>
+                          <td className="font-semibold text-white">
+                            {tx.tenant_name} <span className="text-slate-500 font-normal">({tx.tenant_subdomain})</span>
+                          </td>
+                          <td>{tx.plan_name}</td>
+                          <td className="text-emerald-400 font-semibold">{tx.amount.toLocaleString()} ฿</td>
+                          <td>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${tx.billing_cycle === 'yearly' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'}`}>
+                              {tx.billing_cycle === 'yearly' ? 'รายปี' : 'รายเดือน'}
+                            </span>
+                          </td>
+                          <td className="text-slate-300 text-xs">
+                            {tx.payment_method === 'bank_transfer' ? 'โอนเงินธนาคาร' :
+                             tx.payment_method === 'credit_card' ? 'บัตรเครดิต/เดบิต' :
+                             'ปรับระดับระบบส่วนกลาง (Manual)'}
+                          </td>
+                          <td>
+                            <span className={`badge ${tx.payment_status === 'paid' ? 'badge-active' : tx.payment_status === 'pending' ? 'badge-pending' : 'badge-suspended'}`}>
+                              {tx.payment_status === 'paid' ? 'ชำระแล้ว' :
+                               tx.payment_status === 'pending' ? 'รอตรวจสอบ' : 'ล้มเหลว'}
+                            </span>
+                          </td>
+                          <td className="text-slate-400 text-xs">
+                            {tx.payment_date ? new Date(tx.payment_date).toLocaleString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleResendEmail(tx.id)}
+                              className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
+                              disabled={loading}
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              ส่งเมลอีกครั้ง
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {transactions.length === 0 && (
+                        <tr>
+                          <td colSpan={9} className="text-center py-8 text-slate-500 italic text-xs">
+                            ยังไม่มีรายการธุรกรรมบันทึกในระบบ
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
           {/* VIEW: GLOBAL SaaS CONFIG */}
           {activeTab === 'settings' && (
-            <form onSubmit={handleSaveSettings} className="space-y-6 animate-fade-in max-w-4xl">
+            <form onSubmit={handleSaveSettings} className="space-y-6 animate-fade-in max-w-5xl">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* SMTP configuration */}
-                <div className="card space-y-4">
+                {/* 1. SMTP configuration */}
+                <div className="card space-y-4 border border-white/5">
                   <h3 className="text-sm font-semibold text-white flex items-center gap-2 border-b border-white/5 pb-2">
                     <Settings className="w-4 h-4 text-indigo-400" />
-                    การตั้งค่าเมลเซิร์ฟเวอร์ระบบ (SMTP)
+                    1. ตั้งค่าเมลเซิร์ฟเวอร์ระบบ (SMTP Settings)
                   </h3>
                   <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">SMTP Host</label>
-                      <input
-                        type="text"
-                        className="input-field"
-                        value={sysSettings.smtp_host}
-                        onChange={e => setSysSettings({ ...sysSettings, smtp_host: e.target.value })}
-                        placeholder="smtp.gmail.com"
-                        required
-                      />
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-xs text-slate-400">SMTP Host</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={sysSettings.smtp_host}
+                          onChange={e => setSysSettings({ ...sysSettings, smtp_host: e.target.value })}
+                          placeholder="smtp.gmail.com"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">Port</label>
+                        <input
+                          type="number"
+                          className="input-field"
+                          value={sysSettings.smtp_port}
+                          onChange={e => setSysSettings({ ...sysSettings, smtp_port: parseInt(e.target.value) || 587 })}
+                          placeholder="587"
+                          required
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-400">SMTP Port</label>
-                      <input
-                        type="number"
-                        className="input-field"
-                        value={sysSettings.smtp_port}
-                        onChange={e => setSysSettings({ ...sysSettings, smtp_port: parseInt(e.target.value) || 587 })}
-                        placeholder="587"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-slate-400">SMTP User / Email</label>
+                      <label className="text-xs text-slate-400">SMTP User / Email Address</label>
                       <input
                         type="email"
                         className="input-field"
@@ -1190,65 +1191,235 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
 
-                {/* AI and Global Policies */}
-                <div className="card space-y-4 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2 border-b border-white/5 pb-2">
-                      <Sparkles className="w-4 h-4 text-indigo-400" />
-                      ขุมพลัง AI & นโยบายระบบ
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-slate-400">Gemini API Key (Override)</label>
-                        <input
-                          type="password"
-                          className="input-field"
-                          value={sysSettings.gemini_api_key_override}
-                          onChange={e => setSysSettings({ ...sysSettings, gemini_api_key_override: e.target.value })}
-                          placeholder="เว้นว่างไว้เพื่อใช้คีย์เริ่มต้นของเซิร์ฟเวอร์"
-                        />
-                      </div>
-                      
-                      <div className="pt-2 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="text-xs font-semibold text-white">โหมดปิดปรับปรุงระบบชั่วคราว</p>
-                            <p className="text-[10px] text-slate-500">บล็อกผู้ใช้นอกเหนือจาก SuperAdmin</p>
-                          </div>
+                {/* 2. AI Chat Engine APIs */}
+                <div className="card space-y-4 border border-white/5">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2 border-b border-white/5 pb-2">
+                    <Sparkles className="w-4 h-4 text-indigo-400" />
+                    2. การตั้งค่าปัญญาประดิษฐ์ (AI Chat APIs)
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="space-y-2 pb-2 border-b border-white/5">
+                      <h4 className="text-xs font-semibold text-indigo-300">Google Gemini API</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[10px] text-slate-400">Gemini API Key</label>
                           <input
-                            type="checkbox"
-                            className="rounded text-indigo-600 bg-slate-800 border-slate-600"
-                            checked={sysSettings.maintenance_mode}
-                            onChange={e => setSysSettings({ ...sysSettings, maintenance_mode: e.target.checked })}
+                            type="password"
+                            className="input-field py-1 text-xs"
+                            value={sysSettings.gemini_api_key_override}
+                            onChange={e => setSysSettings({ ...sysSettings, gemini_api_key_override: e.target.value })}
+                            placeholder="ปล่อยว่างเพื่อใช้คีย์เริ่มต้นระบบ"
                           />
                         </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400">โมเดลประมวลผล</label>
+                          <select
+                            className="input-field py-1 text-xs"
+                            value={sysSettings.gemini_model}
+                            onChange={e => setSysSettings({ ...sysSettings, gemini_model: e.target.value })}
+                          >
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
 
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="text-xs font-semibold text-white">เปิดรับการลงทะเบียนสำนักงานใหม่</p>
-                            <p className="text-[10px] text-slate-500">อนุญาตให้สมัครบริการ ERP ทนายความทางหน้าเว็บบริการ</p>
-                          </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-emerald-400">OpenAI ChatGPT API</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[10px] text-slate-400">OpenAI API Key</label>
                           <input
-                            type="checkbox"
-                            className="rounded text-indigo-600 bg-slate-800 border-slate-600"
-                            checked={sysSettings.allow_new_registrations}
-                            onChange={e => setSysSettings({ ...sysSettings, allow_new_registrations: e.target.checked })}
+                            type="password"
+                            className="input-field py-1 text-xs"
+                            value={sysSettings.openai_api_key}
+                            onChange={e => setSysSettings({ ...sysSettings, openai_api_key: e.target.value })}
+                            placeholder="sk-proj-••••••••"
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400">โมเดลประมวลผล</label>
+                          <select
+                            className="input-field py-1 text-xs"
+                            value={sysSettings.openai_model}
+                            onChange={e => setSysSettings({ ...sysSettings, openai_model: e.target.value })}
+                          >
+                            <option value="gpt-4o">GPT-4o (ดีที่สุด)</option>
+                            <option value="gpt-4o-mini">GPT-4o mini (เร็ว/ประหยัด)</option>
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                          </select>
                         </div>
                       </div>
                     </div>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="btn-primary w-full py-2.5 mt-4 flex items-center justify-center gap-2"
-                  >
-                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                    บันทึกการตั้งค่าทั้งหมด
-                  </button>
                 </div>
 
+                {/* 3. Bank Account for Manual Transfer */}
+                <div className="card space-y-4 border border-white/5">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Database className="w-4 h-4 text-indigo-400" />
+                      3. บัญชีรับชำระเงินโอนธนาคาร (Bank Transfer)
+                    </h3>
+                    <input
+                      type="checkbox"
+                      className="rounded text-indigo-600 bg-slate-800 border-slate-600"
+                      checked={sysSettings.enable_bank_transfer}
+                      onChange={e => setSysSettings({ ...sysSettings, enable_bank_transfer: e.target.checked })}
+                    />
+                  </div>
+                  
+                  <div className="space-y-3 opacity-90">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">ชื่อธนาคาร</label>
+                        <select
+                          className="input-field"
+                          value={sysSettings.bank_name}
+                          onChange={e => setSysSettings({ ...sysSettings, bank_name: e.target.value })}
+                        >
+                          <option value="ธนาคารกสิกรไทย">ธนาคารกสิกรไทย (KBANK)</option>
+                          <option value="ธนาคารไทยพาณิชย์">ธนาคารไทยพาณิชย์ (SCB)</option>
+                          <option value="ธนาคารกรุงเทพ">ธนาคารกรุงเทพ (BBL)</option>
+                          <option value="ธนาคารกรุงไทย">ธนาคารกรุงไทย (KTB)</option>
+                          <option value="ธนาคารกรุงศรีอยุธยา">ธนาคารกรุงศรีอยุธยา (BAY)</option>
+                          <option value="ธนาคารทหารไทยธนชาต">ธนาคารทหารไทยธนชาต (TTB)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">เลขที่บัญชี</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={sysSettings.bank_account_number}
+                          onChange={e => setSysSettings({ ...sysSettings, bank_account_number: e.target.value })}
+                          placeholder="เช่น 123-4-56789-0"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">ชื่อบัญชีรับเงิน</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={sysSettings.bank_account_name}
+                          onChange={e => setSysSettings({ ...sysSettings, bank_account_name: e.target.value })}
+                          placeholder="ชื่อบริษัท หรือ ชื่อบัญชีผู้รับเงิน"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">เลขพร้อมเพย์ (PromptPay ID)</label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={sysSettings.promptpay_id}
+                          onChange={e => setSysSettings({ ...sysSettings, promptpay_id: e.target.value })}
+                          placeholder="เลขประจำตัวผู้เสียภาษี หรือ เบอร์โทร"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Credit/Debit Card via Stripe */}
+                <div className="card space-y-4 border border-white/5">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-indigo-400" />
+                      4. บัญชีรับบัตรเครดิต & เดบิต (Stripe API Config)
+                    </h3>
+                    <input
+                      type="checkbox"
+                      className="rounded text-indigo-600 bg-slate-800 border-slate-600"
+                      checked={sysSettings.enable_stripe}
+                      onChange={e => setSysSettings({ ...sysSettings, enable_stripe: e.target.checked })}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Stripe Publishable Key</label>
+                      <input
+                        type="text"
+                        className="input-field text-xs"
+                        value={sysSettings.stripe_publishable_key}
+                        onChange={e => setSysSettings({ ...sysSettings, stripe_publishable_key: e.target.value })}
+                        placeholder="pk_test_••••••••"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">Stripe Secret Key</label>
+                        <input
+                          type="password"
+                          className="input-field text-xs"
+                          value={sysSettings.stripe_secret_key}
+                          onChange={e => setSysSettings({ ...sysSettings, stripe_secret_key: e.target.value })}
+                          placeholder="sk_test_••••••••"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400">Webhook Secret</label>
+                        <input
+                          type="password"
+                          className="input-field text-xs"
+                          value={sysSettings.stripe_webhook_secret}
+                          onChange={e => setSysSettings({ ...sysSettings, stripe_webhook_secret: e.target.value })}
+                          placeholder="whsec_••••••••"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Global Policies Mode */}
+                <div className="card space-y-4 md:col-span-2 border border-white/5 bg-indigo-950/10">
+                  <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
+                    นโยบายสถานะและการบริการระบบส่วนกลาง
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                      <div>
+                        <p className="text-xs font-semibold text-white">โหมดปิดปรับปรุงระบบชั่วคราว (Maintenance Mode)</p>
+                        <p className="text-[10px] text-slate-500">บล็อกผู้ใช้นอกเหนือจาก SuperAdmin</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="rounded text-indigo-600 bg-slate-800 border-slate-600"
+                        checked={sysSettings.maintenance_mode}
+                        onChange={e => setSysSettings({ ...sysSettings, maintenance_mode: e.target.checked })}
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                      <div>
+                        <p className="text-xs font-semibold text-white">เปิดรับการลงทะเบียนสำนักงานใหม่ (Self-Registration)</p>
+                        <p className="text-[10px] text-slate-500">อนุญาตให้ผู้สนใจสมัครบริการ ERP ทนายความทางหน้าหลัก</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="rounded text-indigo-600 bg-slate-800 border-slate-600"
+                        checked={sysSettings.allow_new_registrations}
+                        onChange={e => setSysSettings({ ...sysSettings, allow_new_registrations: e.target.checked })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-white/5">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary px-8 py-3 flex items-center justify-center gap-2 font-semibold text-sm shadow-lg shadow-indigo-600/25"
+                >
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  บันทึกโครงสร้างระบบและการตั้งค่าทั้งหมด
+                </button>
               </div>
             </form>
           )}

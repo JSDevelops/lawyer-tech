@@ -10,8 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_
-import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 
@@ -19,6 +17,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import Document, DocumentType, Client, Case
 from app.core.config import settings
+from app.core.ai import get_llm
 
 router = APIRouter()
 
@@ -34,14 +33,6 @@ except Exception:
     except Exception:
         pass
 
-
-# Helper function to get Gemini LLM
-def get_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=settings.GEMINI_API_KEY,
-        temperature=0.3,
-    )
 
 # Document formatting helper
 def format_document(doc: Document, client_name: str = None, case_title: str = None, case_number: str = None) -> dict:
@@ -267,7 +258,7 @@ async def draft_document_ai(
 ):
     """ร่างเอกสารกฎหมายด้วย AI และบันทึกเข้าระบบอัตโนมัติ"""
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         type_titles = {
             "complaint": "คำฟ้องต่อศาล",
@@ -396,7 +387,7 @@ async def analyze_document_ai(
         raise HTTPException(status_code=400, detail="เอกสารว่างเปล่า หรือไม่สามารถดึงข้อความมาวิเคราะห์ได้")
         
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         prompt_template = """วิเคราะห์และสรุปเนื้อหาเอกสารทางกฎหมายต่อไปนี้อย่างเป็นมืออาชีพ:
 

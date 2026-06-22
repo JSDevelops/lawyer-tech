@@ -290,7 +290,23 @@ class SettingsUpdateRequest(BaseModel):
     smtp_port: int
     smtp_user: str
     smtp_password: str
+    
     gemini_api_key_override: Optional[str] = ""
+    gemini_model: Optional[str] = "gemini-1.5-pro"
+    openai_api_key: Optional[str] = ""
+    openai_model: Optional[str] = "gpt-4o"
+    
+    bank_name: Optional[str] = ""
+    bank_account_name: Optional[str] = ""
+    bank_account_number: Optional[str] = ""
+    promptpay_id: Optional[str] = ""
+    enable_bank_transfer: bool = True
+    
+    stripe_publishable_key: Optional[str] = ""
+    stripe_secret_key: Optional[str] = ""
+    stripe_webhook_secret: Optional[str] = ""
+    enable_stripe: bool = False
+    
     maintenance_mode: bool
     allow_new_registrations: bool
 
@@ -320,8 +336,24 @@ async def get_settings(db: AsyncSession = Depends(get_db), current_user=Depends(
         "smtp_host": setting.smtp_host,
         "smtp_port": setting.smtp_port,
         "smtp_user": setting.smtp_user,
-        "smtp_password": setting.smtp_password,
-        "gemini_api_key_override": setting.gemini_api_key_override,
+        "smtp_password": "••••••••" if setting.smtp_password else "",
+        
+        "gemini_api_key_override": "••••••••" if setting.gemini_api_key_override else "",
+        "gemini_model": setting.gemini_model,
+        "openai_api_key": "••••••••" if setting.openai_api_key else "",
+        "openai_model": setting.openai_model,
+        
+        "bank_name": setting.bank_name,
+        "bank_account_name": setting.bank_account_name,
+        "bank_account_number": setting.bank_account_number,
+        "promptpay_id": setting.promptpay_id,
+        "enable_bank_transfer": setting.enable_bank_transfer,
+        
+        "stripe_publishable_key": setting.stripe_publishable_key,
+        "stripe_secret_key": "••••••••" if setting.stripe_secret_key else "",
+        "stripe_webhook_secret": "••••••••" if setting.stripe_webhook_secret else "",
+        "enable_stripe": setting.enable_stripe,
+        
         "maintenance_mode": setting.maintenance_mode,
         "allow_new_registrations": setting.allow_new_registrations
     }
@@ -338,12 +370,40 @@ async def update_settings(req: SettingsUpdateRequest, db: AsyncSession = Depends
     setting.smtp_host = req.smtp_host
     setting.smtp_port = req.smtp_port
     setting.smtp_user = req.smtp_user
-    setting.smtp_password = req.smtp_password
-    setting.gemini_api_key_override = req.gemini_api_key_override
+    
+    # Keep existing values if client submits mask
+    if req.smtp_password and "••" not in req.smtp_password:
+        setting.smtp_password = req.smtp_password
+        
+    if req.gemini_api_key_override is not None and "••" not in req.gemini_api_key_override:
+        setting.gemini_api_key_override = req.gemini_api_key_override
+        
+    setting.gemini_model = req.gemini_model
+    
+    if req.openai_api_key is not None and "••" not in req.openai_api_key:
+        setting.openai_api_key = req.openai_api_key
+        
+    setting.openai_model = req.openai_model
+    
+    setting.bank_name = req.bank_name
+    setting.bank_account_name = req.bank_account_name
+    setting.bank_account_number = req.bank_account_number
+    setting.promptpay_id = req.promptpay_id
+    setting.enable_bank_transfer = req.enable_bank_transfer
+    
+    setting.stripe_publishable_key = req.stripe_publishable_key
+    
+    if req.stripe_secret_key is not None and "••" not in req.stripe_secret_key:
+        setting.stripe_secret_key = req.stripe_secret_key
+        
+    if req.stripe_webhook_secret is not None and "••" not in req.stripe_webhook_secret:
+        setting.stripe_webhook_secret = req.stripe_webhook_secret
+        
+    setting.enable_stripe = req.enable_stripe
     setting.maintenance_mode = req.maintenance_mode
     setting.allow_new_registrations = req.allow_new_registrations
     
-    await log_action(db, "UPDATE_SETTINGS", "Updated global system configurations", current_user["email"])
+    await log_action(db, "UPDATE_SETTINGS", "Updated global system, AI and payment configurations", current_user["email"])
     return {"status": "success", "message": "บันทึกการตั้งค่าระบบสำเร็จ"}
 
 

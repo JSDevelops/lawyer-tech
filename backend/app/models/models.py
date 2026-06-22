@@ -504,7 +504,26 @@ class SystemSetting(Base):
     smtp_port = Column(Integer, default=587)
     smtp_user = Column(String(255), default="noreply@lawyertech.co.th")
     smtp_password = Column(String(255), default="••••••••")
+    
+    # AI Config
     gemini_api_key_override = Column(String(255), default="")
+    gemini_model = Column(String(100), default="gemini-1.5-pro")
+    openai_api_key = Column(String(255), default="")
+    openai_model = Column(String(100), default="gpt-4o")
+    
+    # Bank Account for Manual Transfer
+    bank_name = Column(String(150), default="ธนาคารกสิกรไทย")
+    bank_account_name = Column(String(255), default="บริษัท เลเยอร์ เทค จำกัด")
+    bank_account_number = Column(String(50), default="")
+    promptpay_id = Column(String(50), default="")
+    enable_bank_transfer = Column(Boolean, default=True)
+    
+    # Stripe Credit/Debit Card Config
+    stripe_publishable_key = Column(String(255), default="")
+    stripe_secret_key = Column(String(255), default="")
+    stripe_webhook_secret = Column(String(255), default="")
+    enable_stripe = Column(Boolean, default=False)
+    
     maintenance_mode = Column(Boolean, default=False)
     allow_new_registrations = Column(Boolean, default=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

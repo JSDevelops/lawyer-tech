@@ -3,21 +3,17 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 from typing import Optional
-import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
+from sqlalchemy.ext.asyncio import AsyncSession
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 import io
 import pypdf
 
-from app.core.config import settings
+from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.ai import get_llm, get_genai_model
 
 router = APIRouter()
-
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
-
 
 # ==============================
 # Pydantic Schemas
@@ -47,26 +43,18 @@ class ChatRequest(BaseModel):
 
 
 # ==============================
-# AI Helper Functions
-# ==============================
-
-def get_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=settings.GEMINI_API_KEY,
-        temperature=0.3,
-    )
-
-
-# ==============================
 # API Endpoints
 # ==============================
 
 @router.post("/chat")
-async def ai_chat(request: ChatRequest, current_user=Depends(get_current_user)):
+async def ai_chat(
+    request: ChatRequest, 
+    db: AsyncSession = Depends(get_db), 
+    current_user=Depends(get_current_user)
+):
     """🤖 AI Chat Assistant สำหรับทนายและลูกความ"""
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         system_prompt = """คุณคือ AI ผู้ช่วยทางกฎหมายของ Lawyer Tech ERP
 คุณช่วยทีมทนายความในการ:
@@ -86,10 +74,11 @@ async def ai_chat(request: ChatRequest, current_user=Depends(get_current_user)):
         chain = prompt | llm | StrOutputParser()
         response = chain.invoke({"message": request.message})
         
+        model_name = getattr(llm, "model_name", getattr(llm, "model", "AI Model"))
         return {
             "status": "success",
             "response": response,
-            "model": "gemini-2.0-flash"
+            "model": model_name
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
@@ -98,11 +87,12 @@ async def ai_chat(request: ChatRequest, current_user=Depends(get_current_user)):
 @router.post("/legal-research")
 async def smart_legal_research(
     request: LegalResearchRequest,
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """🔎 Smart Legal Research — ค้นหากฎหมายและฎีกาที่เกี่ยวข้อง"""
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         prompt_template = """คุณคือผู้เชี่ยวชาญกฎหมายไทย ค้นหาและวิเคราะห์:
 
@@ -139,11 +129,12 @@ async def smart_legal_research(
 @router.post("/summarize")
 async def summarize_case(
     request: SummarizeRequest,
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """📝 Case Summarization — สรุปข้อเท็จจริงคดีเป็น 1 หน้า"""
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         format_instructions = {
             "brief": "สรุปกระชับใน 3-5 ประโยค",
@@ -181,6 +172,7 @@ async def summarize_case(
 @router.post("/summarize-pdf")
 async def summarize_pdf(
     file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """📄 PDF Summarization — อัปโหลด PDF และให้ AI สรุป"""
@@ -198,7 +190,7 @@ async def summarize_pdf(
         if not text.strip():
             raise HTTPException(status_code=400, detail="ไม่สามารถอ่านข้อความจาก PDF ได้")
         
-        llm = get_llm()
+        llm = await get_llm(db)
         
         prompt_template = """สรุปเนื้อหาเอกสารทางกฎหมายต่อไปนี้เป็น 1 หน้า A4:
 
@@ -234,11 +226,12 @@ async def summarize_pdf(
 @router.post("/draft-document")
 async def draft_document(
     request: DocumentDraftRequest,
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """📃 Document Drafting — ร่างเอกสารทางกฎหมายด้วย AI"""
     try:
-        llm = get_llm()
+        llm = await get_llm(db)
         
         templates = {
             "complaint": "คำฟ้องต่อศาล",
@@ -283,11 +276,12 @@ async def draft_document(
 @router.post("/categorize-case")
 async def categorize_case(
     request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     """🏷️ จัดหมวดหมู่คดีอัตโนมัติด้วย AI"""
     try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = await get_genai_model(db)
         
         prompt = f"""จากข้อความต่อไปนี้ จัดหมวดหมู่คดีความให้ตรงที่สุด โดยเลือกจาก:
 - คดีอาญา
