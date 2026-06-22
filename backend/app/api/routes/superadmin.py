@@ -35,6 +35,7 @@ class TenantStatusUpdateRequest(BaseModel):
 class PlanCreateRequest(BaseModel):
     name: str
     price: float
+    price_yearly: float = 0.0
     max_users: int = 3
     storage_limit_gb: float = 1.0
     enable_ai: bool = False
@@ -115,9 +116,15 @@ async def get_tenants(db: AsyncSession = Depends(get_db), current_user=Depends(r
         sub_row = sub_res.first()
         plan_name = "ไม่ได้สมัครสมาชิก"
         plan_price = 0.0
+        plan_price_yearly = 0.0
+        billing_cycle = "monthly"
+        end_date = None
         if sub_row:
             plan_name = sub_row[1].name
             plan_price = sub_row[1].price
+            plan_price_yearly = sub_row[1].price_yearly
+            billing_cycle = sub_row[0].billing_cycle
+            end_date = sub_row[0].end_date
 
         tenant_list.append({
             "id": str(tenant.id),
@@ -128,7 +135,10 @@ async def get_tenants(db: AsyncSession = Depends(get_db), current_user=Depends(r
             "user_count": user_count,
             "case_count": case_count,
             "plan_name": plan_name,
-            "plan_price": plan_price
+            "plan_price": plan_price,
+            "plan_price_yearly": plan_price_yearly,
+            "billing_cycle": billing_cycle,
+            "end_date": end_date
         })
         
     return tenant_list
@@ -200,6 +210,7 @@ async def get_plans(db: AsyncSession = Depends(get_db), current_user=Depends(req
             "id": str(p.id),
             "name": p.name,
             "price": p.price,
+            "price_yearly": p.price_yearly,
             "max_users": p.max_users,
             "storage_limit_gb": p.storage_limit_gb,
             "enable_ai": p.enable_ai,
@@ -214,6 +225,7 @@ async def create_plan(req: PlanCreateRequest, db: AsyncSession = Depends(get_db)
     plan = SubscriptionPlan(
         name=req.name,
         price=req.price,
+        price_yearly=req.price_yearly,
         max_users=req.max_users,
         storage_limit_gb=req.storage_limit_gb,
         enable_ai=req.enable_ai,
@@ -221,7 +233,7 @@ async def create_plan(req: PlanCreateRequest, db: AsyncSession = Depends(get_db)
     )
     db.add(plan)
     await db.flush()
-    await log_action(db, "CREATE_PLAN", f"Created subscription plan '{plan.name}' for {plan.price} THB/mo", current_user["email"])
+    await log_action(db, "CREATE_PLAN", f"Created subscription plan '{plan.name}' for {plan.price} THB/mo / {plan.price_yearly} THB/yr", current_user["email"])
     return {"status": "success", "plan_id": str(plan.id), "message": f"สร้างแพ็กเกจ {plan.name} สำเร็จ"}
 
 @router.put("/plans/{plan_id}")
@@ -239,6 +251,7 @@ async def update_plan(plan_id: str, req: PlanCreateRequest, db: AsyncSession = D
         
     plan.name = req.name
     plan.price = req.price
+    plan.price_yearly = req.price_yearly
     plan.max_users = req.max_users
     plan.storage_limit_gb = req.storage_limit_gb
     plan.enable_ai = req.enable_ai
@@ -281,6 +294,7 @@ class SettingsUpdateRequest(BaseModel):
 
 class TenantSubscriptionUpdateRequest(BaseModel):
     plan_id: str
+    billing_cycle: str = "monthly" # monthly, yearly
 
 
 # ==============================
@@ -385,13 +399,24 @@ async def update_tenant_subscription(tenant_id: str, req: TenantSubscriptionUpda
     )
 
     # Create new subscription
+    from datetime import datetime, timedelta
+    price_paid = plan.price if req.billing_cycle == "monthly" else plan.price_yearly
+    end_date = None
+    if req.billing_cycle == "monthly":
+        end_date = datetime.now() + timedelta(days=30)
+    elif req.billing_cycle == "yearly":
+        end_date = datetime.now() + timedelta(days=365)
+
     sub = TenantSubscription(
         tenant_id=t_uuid,
         plan_id=p_uuid,
+        billing_cycle=req.billing_cycle,
+        price_paid=price_paid,
+        end_date=end_date,
         is_active=True
     )
     db.add(sub)
     await db.flush()
 
-    await log_action(db, "UPDATE_TENANT_SUBSCRIPTION", f"Manually assigned plan '{plan.name}' to tenant '{tenant.name}'", current_user["email"])
+    await log_action(db, "UPDATE_TENANT_SUBSCRIPTION", f"Manually assigned plan '{plan.name}' ({req.billing_cycle}) to tenant '{tenant.name}'", current_user["email"])
     return {"status": "success", "message": f"เปลี่ยนแพ็กเกจสมาชิกให้สำนักงาน {tenant.name} สำเร็จ"}

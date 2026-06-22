@@ -469,7 +469,8 @@ class SubscriptionPlan(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
-    price = Column(Float, default=0.0)
+    price = Column(Float, default=0.0) # monthly price
+    price_yearly = Column(Float, default=0.0) # yearly price
     max_users = Column(Integer, default=3)
     storage_limit_gb = Column(Float, default=1.0)
     enable_ai = Column(Boolean, default=False)
@@ -486,6 +487,8 @@ class TenantSubscription(Base):
     plan_id = Column(UUID(as_uuid=True), ForeignKey("subscription_plans.id"), nullable=False)
     start_date = Column(DateTime(timezone=True), server_default=func.now())
     end_date = Column(DateTime(timezone=True), nullable=True)
+    billing_cycle = Column(String(20), default="monthly") # monthly, yearly
+    price_paid = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
 
     tenant = relationship("Tenant")

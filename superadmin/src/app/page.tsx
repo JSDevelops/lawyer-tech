@@ -20,12 +20,16 @@ interface Tenant {
   case_count: number
   plan_name: string
   plan_price: number
+  plan_price_yearly?: number
+  billing_cycle?: 'monthly' | 'yearly'
+  end_date?: string | null
 }
 
 interface Plan {
   id: string
   name: string
   price: number
+  price_yearly: number
   max_users: number
   storage_limit_gb: number
   enable_ai: boolean
@@ -89,6 +93,7 @@ export default function SuperAdminPage() {
   const [planForm, setPlanForm] = useState({
     name: '',
     price: 0,
+    price_yearly: 0,
     max_users: 3,
     storage_limit_gb: 1.0,
     enable_ai: false,
@@ -99,6 +104,7 @@ export default function SuperAdminPage() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [subSelectedTenant, setSubSelectedTenant] = useState<Tenant | null>(null)
   const [subPlanId, setSubPlanId] = useState('')
+  const [subBillingCycle, setSubBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
   // Get Auth Headers
   const getHeaders = () => {
@@ -200,7 +206,10 @@ export default function SuperAdminPage() {
       const res = await fetch(`${API}/superadmin/tenants/${subSelectedTenant.id}/subscription`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify({ plan_id: subPlanId })
+        body: JSON.stringify({ 
+          plan_id: subPlanId, 
+          billing_cycle: subBillingCycle 
+        })
       })
       if (res.ok) {
         toast.success(`เปลี่ยนแผนสมาชิกให้ ${subSelectedTenant.name} สำเร็จ`)
@@ -336,6 +345,7 @@ export default function SuperAdminPage() {
         setPlanForm({
           name: '',
           price: 0,
+          price_yearly: 0,
           max_users: 3,
           storage_limit_gb: 1.0,
           enable_ai: false,
@@ -379,6 +389,7 @@ export default function SuperAdminPage() {
     setPlanForm({
       name: plan.name,
       price: plan.price,
+      price_yearly: plan.price_yearly || 0,
       max_users: plan.max_users,
       storage_limit_gb: plan.storage_limit_gb,
       enable_ai: plan.enable_ai,
@@ -682,6 +693,8 @@ export default function SuperAdminPage() {
                       <th>ชื่อสำนักงาน</th>
                       <th>ซับโดเมน</th>
                       <th>แพ็กเกจสมาชิก</th>
+                      <th>รอบบิล</th>
+                      <th>วันหมดอายุ</th>
                       <th>จำนวนบุคลากร</th>
                       <th>คดีทั้งหมด</th>
                       <th>สถานะบริการ</th>
@@ -698,6 +711,14 @@ export default function SuperAdminPage() {
                           </code>
                         </td>
                         <td>{t.plan_name}</td>
+                        <td>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${t.billing_cycle === 'yearly' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'}`}>
+                            {t.billing_cycle === 'yearly' ? 'รายปี' : 'รายเดือน'}
+                          </span>
+                        </td>
+                        <td className="text-xs text-slate-400">
+                          {t.end_date ? new Date(t.end_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'ไม่มีกำหนด'}
+                        </td>
                         <td>{t.user_count} คน</td>
                         <td>{t.case_count} คดี</td>
                         <td>
@@ -742,6 +763,7 @@ export default function SuperAdminPage() {
                     setPlanForm({
                       name: '',
                       price: 0,
+                      price_yearly: 0,
                       max_users: 3,
                       storage_limit_gb: 1.0,
                       enable_ai: false,
@@ -779,9 +801,14 @@ export default function SuperAdminPage() {
                         </div>
                       </div>
 
-                      <div className="pb-4 border-b border-white/5">
-                        <span className="text-3xl font-extrabold text-white">{p.price.toLocaleString()}</span>
-                        <span className="text-xs text-slate-400 ml-1">฿ / เดือน</span>
+                      <div className="pb-4 border-b border-white/5 space-y-1">
+                        <div>
+                          <span className="text-2xl font-extrabold text-white">{p.price.toLocaleString()}</span>
+                          <span className="text-xs text-slate-400 ml-1">฿ / เดือน</span>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          หรือ <span className="font-semibold text-slate-400">{(p.price_yearly || 0).toLocaleString()}</span> ฿ / ปี
+                        </div>
                       </div>
 
                       <ul className="space-y-2.5 text-xs text-slate-300">
@@ -840,7 +867,9 @@ export default function SuperAdminPage() {
                       <th>ชื่อสำนักงาน</th>
                       <th>ซับโดเมน</th>
                       <th>แพ็กเกจปัจจุบัน</th>
-                      <th>ราคา/เดือน</th>
+                      <th>รอบบิล</th>
+                      <th>ค่าบริการ</th>
+                      <th>วันหมดอายุ</th>
                       <th>ผู้ใช้งาน</th>
                       <th>สถานะ</th>
                       <th>จัดการสิทธิ์</th>
@@ -858,7 +887,20 @@ export default function SuperAdminPage() {
                         <td>
                           <span className="font-medium text-slate-200">{t.plan_name}</span>
                         </td>
-                        <td className="text-indigo-400 font-semibold">{t.plan_price.toLocaleString()} ฿</td>
+                        <td>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${t.billing_cycle === 'yearly' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'}`}>
+                            {t.billing_cycle === 'yearly' ? 'รายปี' : 'รายเดือน'}
+                          </span>
+                        </td>
+                        <td className="text-indigo-400 font-semibold">
+                          {t.billing_cycle === 'yearly' 
+                            ? `${(t.plan_price_yearly || 0).toLocaleString()} ฿` 
+                            : `${(t.plan_price || 0).toLocaleString()} ฿`
+                          }
+                        </td>
+                        <td className="text-xs text-slate-400">
+                          {t.end_date ? new Date(t.end_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'ไม่มีกำหนด'}
+                        </td>
                         <td>{t.user_count} คน</td>
                         <td>
                           <span className={`badge ${t.status === 'active' ? 'badge-active' : 'badge-suspended'}`}>
@@ -871,6 +913,7 @@ export default function SuperAdminPage() {
                               setSubSelectedTenant(t)
                               const matchedPlan = plans.find(p => p.name === t.plan_name)
                               setSubPlanId(matchedPlan ? matchedPlan.id : '')
+                              setSubBillingCycle(t.billing_cycle || 'monthly')
                               setShowSubscriptionModal(true)
                             }}
                             className="btn-secondary py-1 px-2.5 text-xs flex items-center gap-1 hover:border-indigo-500/40 hover:text-white"
@@ -1185,16 +1228,30 @@ export default function SuperAdminPage() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400">ราคาต่อเดือน (บาท) *</label>
-                <input
-                  type="number"
-                  className="input-field"
-                  placeholder="เช่น 1500"
-                  value={planForm.price}
-                  onChange={e => setPlanForm({ ...planForm, price: parseFloat(e.target.value) || 0 })}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">ราคาต่อเดือน (บาท) *</label>
+                  <input
+                    type="number"
+                    className="input-field"
+                    placeholder="เช่น 1990"
+                    value={planForm.price}
+                    onChange={e => setPlanForm({ ...planForm, price: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">ราคาต่อปี (บาท) *</label>
+                  <input
+                    type="number"
+                    className="input-field"
+                    placeholder="เช่น 19900"
+                    value={planForm.price_yearly}
+                    onChange={e => setPlanForm({ ...planForm, price_yearly: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1296,7 +1353,7 @@ export default function SuperAdminPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-400 block">เลือกแผนสมาชิกใหม่</label>
+                <label className="text-xs text-slate-400 block">เลือกแผนสมาชิกใหม่ *</label>
                 <select
                   className="input-field"
                   value={subPlanId}
@@ -1310,6 +1367,34 @@ export default function SuperAdminPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-400 block">เลือกรอบการเรียกเก็บเงิน (Billing Cycle)</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="radio"
+                      name="subBillingCycle"
+                      value="monthly"
+                      checked={subBillingCycle === 'monthly'}
+                      onChange={() => setSubBillingCycle('monthly')}
+                      className="text-indigo-600 bg-slate-800 border-slate-600 focus:ring-indigo-500/50"
+                    />
+                    <span>รายเดือน (Monthly)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="radio"
+                      name="subBillingCycle"
+                      value="yearly"
+                      checked={subBillingCycle === 'yearly'}
+                      onChange={() => setSubBillingCycle('yearly')}
+                      className="text-indigo-600 bg-slate-800 border-slate-600 focus:ring-indigo-500/50"
+                    />
+                    <span>รายปี (Yearly)</span>
+                  </label>
+                </div>
               </div>
             </div>
 
