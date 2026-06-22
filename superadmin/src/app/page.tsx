@@ -114,7 +114,16 @@ export default function SuperAdminPage() {
 
   // Modal / Form States
   const [showTenantModal, setShowTenantModal] = useState(false)
-  const [newTenant, setNewTenant] = useState({ name: '', subdomain: '', plan_id: '' })
+  const [newTenant, setNewTenant] = useState({
+    name: '',
+    subdomain: '',
+    plan_id: '',
+    billing_cycle: 'monthly',
+    admin_email: '',
+    admin_password: '',
+    admin_full_name: '',
+    admin_phone: ''
+  })
   
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
@@ -383,7 +392,16 @@ export default function SuperAdminPage() {
       if (res.ok) {
         toast.success('ลงทะเบียนสำนักงานใหม่สำเร็จ')
         setShowTenantModal(false)
-        setNewTenant({ name: '', subdomain: '', plan_id: '' })
+        setNewTenant({
+          name: '',
+          subdomain: '',
+          plan_id: '',
+          billing_cycle: 'monthly',
+          admin_email: '',
+          admin_password: '',
+          admin_full_name: '',
+          admin_phone: ''
+        })
         loadData()
       } else {
         const err = await res.json()

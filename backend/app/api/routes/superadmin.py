@@ -6,7 +6,7 @@ from sqlalchemy import select, func, update, delete
 import uuid
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, hash_password
 from app.models.models import User, Case, Tenant, SubscriptionPlan, TenantSubscription, UserRole, SystemSetting, SystemAuditLog, SaaSTransaction
 from app.core.email import send_invoice_email
 from datetime import datetime, timedelta
@@ -28,8 +28,15 @@ router = APIRouter()
 
 class TenantCreateRequest(BaseModel):
     name: str
-    subdomain: Optional[str] = None
-    plan_id: Optional[str] = None # Optional initial subscription plan
+    subdomain: str
+    plan_id: Optional[str] = None
+    billing_cycle: Optional[str] = "monthly"
+    
+    # Admin account details
+    admin_email: str
+    admin_password: str
+    admin_full_name: str
+    admin_phone: Optional[str] = None
 
 class TenantStatusUpdateRequest(BaseModel):
     status: str # active, suspended, trial_expired
@@ -148,12 +155,18 @@ async def get_tenants(db: AsyncSession = Depends(get_db), current_user=Depends(r
 @router.post("/tenants")
 async def create_tenant(req: TenantCreateRequest, db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
     """ลงทะเบียนสำนักงานใหม่ (Tenant)"""
-    # Check subdomain uniqueness
+    # 1. Check if user email already exists
+    user_check = await db.execute(select(User).where(User.email == req.admin_email))
+    if user_check.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="อีเมลผู้ดูแลระบบนี้ถูกใช้งานในระบบแล้ว")
+
+    # 2. Check subdomain uniqueness
     if req.subdomain:
         existing_res = await db.execute(select(Tenant).where(Tenant.subdomain == req.subdomain))
         if existing_res.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="ซับโดเมนนี้ถูกใช้งานแล้ว")
             
+    # 3. Create Tenant
     tenant = Tenant(
         name=req.name,
         subdomain=req.subdomain,
@@ -162,24 +175,72 @@ async def create_tenant(req: TenantCreateRequest, db: AsyncSession = Depends(get
     db.add(tenant)
     await db.flush()
 
-    # Assign default subscription if provided
+    # 4. Create Admin User for this Tenant
+    admin_user = User(
+        email=req.admin_email,
+        hashed_password=hash_password(req.admin_password),
+        full_name=req.admin_full_name,
+        phone=req.admin_phone,
+        role=UserRole.ADMIN,
+        tenant_id=tenant.id,
+        is_active=True
+    )
+    db.add(admin_user)
+
+    # 5. Assign default subscription if provided
     if req.plan_id:
         try:
             plan_uuid = uuid.UUID(req.plan_id)
             plan_res = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_uuid))
             plan = plan_res.scalar_one_or_none()
             if plan:
+                duration_days = 365 if req.billing_cycle == "yearly" else 30
+                end_date = datetime.now() + timedelta(days=duration_days)
+                
                 sub = TenantSubscription(
                     tenant_id=tenant.id,
                     plan_id=plan.id,
-                    is_active=True
+                    is_active=True,
+                    billing_cycle=req.billing_cycle or "monthly",
+                    price_paid=plan.price_yearly if req.billing_cycle == "yearly" else plan.price,
+                    start_date=datetime.now(),
+                    end_date=end_date
                 )
                 db.add(sub)
+                
+                # Create corresponding transaction
+                invoice_num = f"INV-SAAS-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+                tx = SaaSTransaction(
+                    invoice_number=invoice_num,
+                    tenant_id=tenant.id,
+                    plan_id=plan.id,
+                    amount=plan.price_yearly if req.billing_cycle == "yearly" else plan.price,
+                    billing_cycle=req.billing_cycle or "monthly",
+                    payment_status="paid",
+                    payment_method="manual_override",
+                    payment_date=datetime.now()
+                )
+                db.add(tx)
+                
+                # Send email confirmation
+                try:
+                    await send_invoice_email(
+                        db=db,
+                        recipient_email=req.admin_email,
+                        tenant_name=tenant.name,
+                        plan_name=plan.name,
+                        amount=tx.amount,
+                        billing_cycle=tx.billing_cycle,
+                        end_date=end_date,
+                        invoice_number=invoice_num
+                    )
+                except Exception as mail_err:
+                    print(f"Error sending onboarding email: {mail_err}")
         except ValueError:
             pass
             
-    await log_action(db, "CREATE_TENANT", f"Created tenant '{tenant.name}' with subdomain '{tenant.subdomain}'", current_user["email"])
-    return {"status": "success", "tenant_id": str(tenant.id), "message": f"สร้าง Tenant: {tenant.name} สำเร็จ"}
+    await log_action(db, "CREATE_TENANT", f"Created tenant '{tenant.name}' and registered admin '{req.admin_email}'", current_user["email"])
+    return {"status": "success", "tenant_id": str(tenant.id), "message": f"สร้าง Tenant: {tenant.name} และผู้ดูแลระบบสำเร็จ"}
 
 @router.put("/tenants/{tenant_id}/status")
 async def update_tenant_status(tenant_id: str, req: TenantStatusUpdateRequest, db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
