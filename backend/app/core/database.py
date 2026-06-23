@@ -5,6 +5,10 @@ from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 
+connect_args = {}
+if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
+    connect_args["ssl"] = "require"
+
 # Async Engine
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -12,6 +16,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    connect_args=connect_args,
 )
 
 # Session Factory
