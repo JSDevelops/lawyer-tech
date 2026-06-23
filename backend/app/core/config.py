@@ -48,5 +48,27 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
+    def __init__(self, **values):
+        super().__init__(**values)
+        vercel_url = os.environ.get("POSTGRES_PRISMA_URL") or os.environ.get("POSTGRES_URL")
+        if vercel_url:
+            async_url = vercel_url
+            if async_url.startswith("postgres://"):
+                async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif async_url.startswith("postgresql://"):
+                async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            if "sslmode" not in async_url:
+                async_url += ("&" if "?" in async_url else "?") + "sslmode=require"
+            self.DATABASE_URL = async_url
+
+            sync_url = vercel_url
+            if sync_url.startswith("postgresql+asyncpg://"):
+                sync_url = sync_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+            elif sync_url.startswith("postgres://"):
+                sync_url = sync_url.replace("postgres://", "postgresql://", 1)
+            if "sslmode" not in sync_url:
+                sync_url += ("&" if "?" in sync_url else "?") + "sslmode=require"
+            self.DATABASE_URL_SYNC = sync_url
+
 
 settings = Settings()
