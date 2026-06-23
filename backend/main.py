@@ -1,6 +1,6 @@
 """
-Lawyer Tech ERP - FastAPI Main Application
-==========================================
+Lawyer Tech ERP - FastAPI Main Application (Supabase DB Connection Updated)
+===========================================================================
 Tech Stack: FastAPI + PostgreSQL + Vector DB + AI (Gemini/OpenAI/LangChain)
 """
 
