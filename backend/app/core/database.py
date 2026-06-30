@@ -5,19 +5,28 @@ from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 
-connect_args = {}
-if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-    connect_args["ssl"] = "require"
+# SQLite (used in tests) does not support pool_size, max_overflow, or SSL
+_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
-# Async Engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    connect_args=connect_args,
-)
+if _is_sqlite:
+    connect_args = {"check_same_thread": False}
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        connect_args=connect_args,
+    )
+else:
+    connect_args = {}
+    if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
+        connect_args["ssl"] = "require"
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        connect_args=connect_args,
+    )
 
 # Session Factory
 AsyncSessionLocal = async_sessionmaker(

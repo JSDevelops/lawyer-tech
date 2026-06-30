@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     AWS_REGION: str = "ap-southeast-1"
     AWS_S3_BUCKET: str = "lawyer-tech-documents"
 
+    # Google Cloud Storage
+    GCS_BUCKET_NAME: str = "lawyer-tech-docs"
+
     # LINE Integration
     LINE_ACCESS_TOKEN: str = ""
     LINE_CHANNEL_ID: str = ""

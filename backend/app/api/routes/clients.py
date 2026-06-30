@@ -119,7 +119,11 @@ async def get_client(
     current_user=Depends(get_current_user)
 ):
     """ดูรายละเอียดลูกความ"""
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    try:
+        client_uuid = uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
+    result = await db.execute(select(Client).where(Client.id == client_uuid))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
@@ -150,15 +154,29 @@ async def update_client(
     current_user=Depends(get_current_user)
 ):
     """แก้ไขข้อมูลลูกความ"""
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    try:
+        client_uuid = uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
+    result = await db.execute(select(Client).where(Client.id == client_uuid))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
     
-    for key, value in request.model_dump(exclude_unset=True).items():
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
         setattr(client, key, value)
     
-    return {"status": "success", "message": "อัปเดตข้อมูลสำเร็จ"}
+    return {
+        "id": str(client.id),
+        "full_name": client.full_name,
+        "phone": client.phone,
+        "email": client.email,
+        "service_type": client.service_type,
+        "kyc_status": client.kyc_status,
+        "notes": client.notes,
+        "tags": client.tags,
+    }
 
 
 @router.patch("/{client_id}/kyc")
@@ -169,7 +187,11 @@ async def update_client_kyc(
     current_user=Depends(get_current_user)
 ):
     """อัปเดตสถานะ KYC"""
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    try:
+        client_uuid = uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
+    result = await db.execute(select(Client).where(Client.id == client_uuid))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
@@ -184,7 +206,11 @@ async def delete_client(
     current_user=Depends(get_current_user)
 ):
     """ลบลูกความ (Soft Delete)"""
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    try:
+        client_uuid = uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
+    result = await db.execute(select(Client).where(Client.id == client_uuid))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")

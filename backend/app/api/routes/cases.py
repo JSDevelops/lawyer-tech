@@ -130,9 +130,11 @@ async def list_cases(
 @router.post("/")
 async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     data_dict = req.model_dump()
+    # Convert string IDs to UUID
+    if isinstance(data_dict.get("client_id"), str):
+        data_dict["client_id"] = uuid.UUID(data_dict["client_id"])
     if req.responsible_lawyers is not None:
         data_dict["responsible_lawyers"] = [l.model_dump() for l in req.responsible_lawyers]
-        # sync legacy fields
         if req.responsible_lawyers:
             data_dict["responsible_lawyer_name"] = req.responsible_lawyers[0].name
             data_dict["responsible_lawyer_phone"] = req.responsible_lawyers[0].phone
@@ -141,12 +143,22 @@ async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), curre
     case = Case(case_number=gen_case_number(), **data_dict)
     db.add(case)
     await db.flush()
-    return {"status": "success", "id": str(case.id), "case_number": case.case_number}
+    return {
+        "status": "success",
+        "id": str(case.id),
+        "case_number": case.case_number,
+        "title": case.title,
+        "status": case.status.value if case.status else None,
+    }
 
 
 @router.get("/{case_id}")
 async def get_case(case_id: str, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    result = await db.execute(select(Case).where(Case.id == case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(404, "ไม่พบคดี")
+    result = await db.execute(select(Case).where(Case.id == case_uuid))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -194,7 +206,11 @@ async def update_case(
     current_user=Depends(get_current_user)
 ):
     """แก้ไขรายละเอียดคดีทั้งหมด"""
-    result = await db.execute(select(Case).where(Case.id == case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(404, "ไม่พบคดี")
+    result = await db.execute(select(Case).where(Case.id == case_uuid))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -221,7 +237,13 @@ async def update_case(
         else:
             setattr(case, key, value)
         
-    return {"status": "success", "message": "อัปเดตข้อมูลคดีความสำเร็จ"}
+    return {
+        "status": "success",
+        "id": str(case.id),
+        "title": case.title,
+        "status": case.status.value if case.status else None,
+        "message": "อัปเดตข้อมูลคดีความสำเร็จ"
+    }
 
 
 @router.patch("/{case_id}/status")
@@ -231,7 +253,11 @@ async def update_case_status(
     db: AsyncSession = Depends(get_db), 
     current_user=Depends(get_current_user)
 ):
-    result = await db.execute(select(Case).where(Case.id == case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(404, "ไม่พบคดี")
+    result = await db.execute(select(Case).where(Case.id == case_uuid))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -246,12 +272,13 @@ async def delete_case(
     current_user=Depends(get_current_user)
 ):
     """ลบคดีออกจากระบบ"""
-    result = await db.execute(select(Case).where(Case.id == case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(404, "ไม่พบคดี")
+    result = await db.execute(select(Case).where(Case.id == case_uuid))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
-    
-    # We can do hard delete or soft delete. Since Case does not have is_active, we do hard delete.
-    # But wait, let's delete safely. We'll delete the case object.
     await db.delete(case)
     return {"status": "success", "message": "ลบคดีความสำเร็จ"}

@@ -93,7 +93,13 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """ดูข้อมูลผู้ใช้ปัจจุบัน"""
-    result = await db.execute(select(User).where(User.id == current_user["sub"]))
+    import uuid as _uuid
+    user_id = current_user["sub"]
+    try:
+        user_uuid = _uuid.UUID(str(user_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=401, detail="ไม่พบข้อมูลผู้ใช้")
+    result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")

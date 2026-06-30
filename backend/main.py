@@ -30,6 +30,7 @@ from app.api.routes import (
     hr,
     settings as settings_api,
     superadmin,
+    line_auth,
 )
 
 
@@ -139,6 +140,7 @@ app.include_router(dashboard.router, prefix=f"{API_PREFIX}/dashboard", tags=["�
 app.include_router(hr.router, prefix=f"{API_PREFIX}/hr", tags=["👥 HR/Employees"])
 app.include_router(settings_api.router, prefix=f"{API_PREFIX}/settings", tags=["⚙️ Settings"])
 app.include_router(superadmin.router, prefix=f"{API_PREFIX}/superadmin", tags=["👑 SuperAdmin"])
+app.include_router(line_auth.router, prefix=f"{API_PREFIX}/line", tags=["📱 LINE Login"])
 
 
 @app.get("/", tags=["Health"])

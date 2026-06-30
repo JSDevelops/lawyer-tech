@@ -18,15 +18,15 @@ from app.core.security import get_current_user
 from app.models.models import Document, DocumentType, Client, Case
 from app.core.config import settings
 from app.core.ai import get_llm
+from app.core.storage import storage
 
 router = APIRouter()
 
-# UPLOAD_DIR
+# Keep local UPLOAD_DIR only for legacy static file serving
 UPLOAD_DIR = "uploads"
 try:
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 except Exception:
-    # Ephemeral fallback for serverless deployment on Vercel
     UPLOAD_DIR = "/tmp/uploads"
     try:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -158,16 +158,16 @@ async def upload_document(
     }
     doc_type = type_map.get(file_type, DocumentType.OTHER)
     
-    # 2. Save file locally
-    file_id = uuid.uuid4()
-    extension = os.path.splitext(file.filename)[1]
-    safe_filename = f"{file_id}{extension}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
-    
+    # 2. Upload via storage module (GCS or local)
     contents = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(contents)
-        
+    upload_result = await storage.upload(
+        file_bytes=contents,
+        filename=file.filename,
+        content_type=file.content_type or "application/octet-stream",
+    )
+    storage_key = upload_result["key"]
+    storage_url = upload_result["url"]
+    
     # 3. Text Extraction (if PDF)
     extracted_text = ""
     if file.filename.lower().endswith('.pdf'):
@@ -196,14 +196,13 @@ async def upload_document(
     cs_id = uuid.UUID(case_id) if case_id and case_id != "null" and case_id != "undefined" else None
     
     new_doc = Document(
-        id=file_id,
         file_name=file.filename,
         original_name=file.filename,
         file_type=doc_type,
         mime_type=file.content_type,
         file_size=len(contents),
-        storage_url=f"/uploads/{safe_filename}",
-        storage_key=safe_filename,
+        storage_url=storage_url,
+        storage_key=storage_key,
         extracted_text=extracted_text,
         client_id=cl_id,
         case_id=cs_id,
@@ -232,11 +231,54 @@ async def upload_document(
     return {
         "status": "success",
         "message": "อัปโหลดเอกสารสำเร็จ",
+        "storage_backend": upload_result.get("backend", "unknown"),
         "data": format_document(new_doc, client_name, case_title, case_number)
     }
 
 
+@router.get("/download/{document_id}")
+async def get_download_url(
+    document_id: str,
+    expiry: int = Query(3600, ge=60, le=86400, description="อายุ URL (วินาที), default 1 ชั่วโมง"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    สร้าง Signed URL สำหรับดาวน์โหลดเอกสาร
+
+    - GCS backend: สร้าง pre-signed URL ที่มีอายุจำกัด
+    - Local backend: return static URL
+    """
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสาร")
+
+    result = await db.execute(select(Document).where(Document.id == doc_uuid))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสาร")
+
+    if not doc.storage_key:
+        raise HTTPException(status_code=400, detail="ไม่มี storage key สำหรับเอกสารนี้")
+
+    try:
+        download_url = await storage.get_signed_url(doc.storage_key, expiry_seconds=expiry)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ไม่สามารถสร้าง download URL: {str(e)}")
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "file_name": doc.file_name,
+        "download_url": download_url,
+        "expires_in": expiry,
+        "backend": storage.backend_name,
+    }
+
+
 @router.get("/templates")
+
 async def list_templates(current_user=Depends(get_current_user)):
     """รายการแม่แบบเอกสารสำเร็จรูป"""
     return {
