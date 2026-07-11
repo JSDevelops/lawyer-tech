@@ -73,3 +73,31 @@ async def get_genai_model(db: AsyncSession = None):
     config = await get_ai_config(db)
     genai.configure(api_key=config["gemini_api_key"])
     return genai.GenerativeModel(config["gemini_model"])
+
+
+async def get_embedding(text: str, db: AsyncSession = None) -> list[float]:
+    """Generate embedding for text using configured provider (Gemini or OpenAI) with 768 dimensions"""
+    import asyncio
+    config = await get_ai_config(db)
+    
+    if config["prefer_provider"] == "openai" and config["openai_api_key"]:
+        import openai
+        print("🤖 Generating OpenAI Embeddings (text-embedding-3-small, 768 dimensions)")
+        client = openai.AsyncOpenAI(api_key=config["openai_api_key"])
+        response = await client.embeddings.create(
+            input=[text],
+            model="text-embedding-3-small",
+            dimensions=768
+        )
+        return response.data[0].embedding
+    else:
+        print("🤖 Generating Gemini Embeddings (text-embedding-004, 768 dimensions)")
+        # Gemini embedding is synchronous in the client, run in asyncio threadpool
+        genai.configure(api_key=config["gemini_api_key"])
+        response = await asyncio.to_thread(
+            genai.embed_content,
+            model="models/text-embedding-004",
+            content=text,
+            task_type="retrieval_document"
+        )
+        return response["embedding"]

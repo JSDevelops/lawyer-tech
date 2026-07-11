@@ -11,6 +11,7 @@ import uuid
 import enum
 
 from app.core.database import Base
+from pgvector.sqlalchemy import Vector
 
 
 # ==============================
@@ -330,6 +331,7 @@ class LegalReference(Base):
     court_level = Column(String(50))  # ศาลฎีกา, ศาลอุทธรณ์
     tags = Column(JSON, default=list)
     source_url = Column(String(500))
+    embedding = Column(Vector(768))
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

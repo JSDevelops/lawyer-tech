@@ -1,9 +1,10 @@
 """AI Assistant Routes — Smart Legal Research, Case Summarization, Document Drafting"""
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Query
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 import io
@@ -90,28 +91,58 @@ async def smart_legal_research(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """🔎 Smart Legal Research — ค้นหากฎหมายและฎีกาที่เกี่ยวข้อง"""
+    """🔎 Smart Legal Research — ค้นหากฎหมายและฎีกาที่เกี่ยวข้องด้วย RAG"""
     try:
+        from app.models.models import LegalReference
+        from app.core.ai import get_embedding
+        
+        # 1. Perform semantic search (RAG)
+        references = []
+        context = "ไม่มีข้อมูลประกอบฎีกาและมาตรากฎหมายอ้างอิงในฐานข้อมูล กรุณาตอบโดยใช้ความรู้กฎหมายทั่วไปของคุณ"
+        
+        try:
+            query_vector = await get_embedding(request.question, db)
+            stmt = select(LegalReference).order_by(
+                LegalReference.embedding.cosine_distance(query_vector)
+            ).limit(3)
+            res = await db.execute(stmt)
+            references = res.scalars().all()
+            
+            if references:
+                context_parts = []
+                for idx, ref in enumerate(references, 1):
+                    context_parts.append(
+                        f"[{idx}] {ref.title} ({ref.dika_number or ref.category})\n"
+                        f"เนื้อหา: {ref.content}"
+                    )
+                context = "\n\n".join(context_parts)
+        except Exception as embed_err:
+            print(f"RAG search error (falling back to direct LLM): {embed_err}")
+            
         llm = await get_llm(db)
         
-        prompt_template = """คุณคือผู้เชี่ยวชาญกฎหมายไทย ค้นหาและวิเคราะห์:
+        prompt_template = """คุณคือทนายความและผู้เชี่ยวชาญกฎหมายไทยที่มีความเชี่ยวชาญสูง 
+หน้าที่ของคุณคือวิเคราะห์ข้อเท็จจริงของคดีความโดยอ้างอิงมาตรากฎหมายหรือแนวฎีกาที่ประกอบอยู่ใน Context ด้านล่างนี้ (ถ้ามี) เป็นหลัก
 
-คำถาม/ข้อเท็จจริง: {question}
+ข้อมูลกฎหมายและแนวฎีกาประกอบ (Context):
+{context}
+
+คำถาม/ข้อเท็จจริงคดี: {question}
 หมวดคดี: {category}
 
-กรุณาให้:
-1. **สรุปกฎหมายที่เกี่ยวข้อง** — มาตราและพระราชบัญญัติที่เกี่ยวข้อง
-2. **แนวฎีกา** — หลักคำวินิจฉัยที่เกี่ยวข้อง (ถ้ามี)
-3. **การวิเคราะห์** — ความเป็นไปได้ทางกฎหมาย
-4. **คำแนะนำ** — ขั้นตอนที่ควรดำเนินการ
-5. **ข้อควรระวัง** — ความเสี่ยงและข้อจำกัด
+กรุณาให้คำแนะนำทางกฎหมายอย่างละเอียดตามหัวข้อดังนี้:
+1. **บทวิเคราะห์ตามข้อกฎหมายและแนวฎีกาที่เกี่ยวข้อง** — นำข้อมูลจาก Context ด้านบนมาประยุกต์และอ้างอิงอย่างชัดเจน
+2. **ประเมินความเป็นไปได้ทางคดีความ** — โอกาสชนะ/แพ้คดี หรือความเสี่ยงต่างๆ
+3. **แนวทางการดำเนินการต่อสำหรับทนายความ** — ขั้นตอนและคำแนะนำที่เป็นรูปธรรม
+4. **ข้อควรระวังสำคัญ**
 
-ตอบเป็นภาษาไทย อ้างอิงกฎหมายไทยให้ถูกต้อง"""
+ตอบเป็นภาษาไทยอย่างเป็นทางการ กระชับ ชัดเจน และมีหลักวิชาการทางกฎหมาย"""
 
         prompt = ChatPromptTemplate.from_template(prompt_template)
         chain = prompt | llm | StrOutputParser()
         
         result = chain.invoke({
+            "context": context,
             "question": request.question,
             "category": request.category or "ทั่วไป"
         })
@@ -120,10 +151,190 @@ async def smart_legal_research(
             "status": "success",
             "research_result": result,
             "question": request.question,
-            "category": request.category
+            "category": request.category,
+            "references": [
+                {
+                    "dika_number": ref.dika_number,
+                    "title": ref.title,
+                    "content": ref.content,
+                    "category": ref.category,
+                    "year": ref.year,
+                    "court_level": ref.court_level,
+                    "source_url": ref.source_url
+                } for ref in references
+            ]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/seed-references")
+async def seed_legal_references(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Seed sample Supreme Court judgments and Civil/Penal code sections with Embeddings"""
+    from app.models.models import LegalReference
+    from app.core.ai import get_embedding
+    
+    # Check if there are already references to avoid duplicate seeding
+    check_stmt = select(func.count(LegalReference.id))
+    check_res = await db.execute(check_stmt)
+    count = check_res.scalar() or 0
+    if count > 0:
+        return {"status": "success", "message": f"Database already has {count} legal references. Seeding skipped."}
+        
+    # Sample Thai legal references
+    sample_data = [
+        {
+            "dika_number": "ฎีกาที่ 1234/2565",
+            "title": "กู้ยืมเงินผ่านทางแอปพลิเคชัน LINE ถือเป็นหนังสือสัญญากู้ยืมตามกฎหมาย",
+            "content": "การกู้ยืมเงินมีหลักฐานการส่งข้อความโต้ตอบกันทางแอปพลิเคชัน LINE และหลักฐานการโอนเงินผ่านระบบธนาคารอิเล็กทรอนิกส์ (e-Banking) ถือเป็นหนังสือสัญญากู้ยืมเงินที่เป็นลายลักษณ์อักษรตาม พ.ร.บ.ว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 มาตรา 7 และมาตรา 8 ร่วมกับ ป.พ.พ. มาตรา 653 โจทก์มีสิทธิ์ฟ้องร้องบังคับคดีได้ตามกฎหมาย แม้จะไม่มีการลงลายมือชื่อในกระดาษก็ตาม",
+            "category": "คดีแพ่ง",
+            "year": 2565,
+            "court_level": "ศาลฎีกา",
+            "tags": ["กู้ยืมเงิน", "LINE", "หลักฐานออนไลน์", "ธุรกรรมอิเล็กทรอนิกส์"],
+            "source_url": "https://www.coj.go.th"
+        },
+        {
+            "dika_number": "ฎีกาที่ 5678/2566",
+            "title": "สิทธิ์ในการขอเปิดทางจำเป็นเมื่อที่ดินถูกล้อมรอบจนไม่มีทางออก",
+            "content": "ที่ดินของโจทก์ถูกล้อมรอบด้วยที่ดินของจำเลยและบุคคลอื่นจนไม่มีทางออกสู่ทางสาธารณะ โจทก์ย่อมมีสิทธิ์ขอผ่านที่ดินที่ล้อมอยู่ไปสู่ทางสาธารณะได้ตาม ป.พ.พ. มาตรา 1349 โดยไม่จำเป็นต้องเป็นกรณีที่ถูกล้อมร้อยเปอร์เซ็นต์ หากทางออกอื่นที่มีอยู่เดิมเป็นหนองน้ำหรือเหวลึกที่ไม่สามารถสัญจรได้สะดวก ก็ถือว่าเป็นทางจำเป็น และโจทก์ต้องจ่ายค่าทดแทนการใช้ทางให้แก่จำเลยตามสมควร",
+            "category": "ที่ดิน",
+            "year": 2566,
+            "court_level": "ศาลฎีกา",
+            "tags": ["ที่ดิน", "ทางจำเป็น", "ทางสาธารณะ", "ภาระจำยอม"],
+            "source_url": "https://www.coj.go.th"
+        },
+        {
+            "dika_number": "ฎีกาที่ 9101/2564",
+            "title": "อายุความฟ้องร้องเรียกเงินตามบัตรเครดิตมีกำหนด 2 ปี",
+            "content": "สิทธิเรียกร้องของธนาคารผู้ออกบัตรเครดิตในการฟ้องร้องให้ผู้ถือบัตรชำระหนี้ค่าสินค้าหรือบริการ รวมถึงการเบิกถอนเงินสดล่วงหน้า มีอายุความ 2 ปีตาม ป.พ.พ. มาตรา 193/34 (7) ซึ่งเป็นหนี้อันเกิดจากการค้าขายหรือบริการของสถาบันการเงิน โดยอายุความเริ่มนับตั้งแต่วันที่ครบกำหนดชำระเงินที่ผู้บริโภคผิดนัดชำระหนี้ครั้งล่าสุด หรือนับแต่วันชำระหนี้ครั้งสุดท้าย",
+            "category": "คดีผิดสัญญา",
+            "year": 2564,
+            "court_level": "ศาลฎีกา",
+            "tags": ["บัตรเครดิต", "อายุความ", "หนี้สิน", "ผิดสัญญา"],
+            "source_url": "https://www.coj.go.th"
+        },
+        {
+            "dika_number": "ป.พ.พ. มาตรา 653",
+            "title": "หลักฐานการกู้ยืมเงิน",
+            "content": "การกู้ยืมเงินกว่าสองพันบาทขึ้นไปนั้น ถ้ามิได้มีหลักฐานเป็นหนังสืออย่างใดอย่างหนึ่งลงลายมือชื่อผู้ยืมเป็นสำคัญ จะฟ้องร้องบังคับคดีไม่ได้ ในการกู้ยืมเงินมีหลักฐานเป็นหนังสือนี้ ท่านว่าจะนำสืบการใช้เงินได้ต่อเมื่อมีหลักฐานเป็นหนังสืออย่างใดอย่างหนึ่งลงลายมือชื่อผู้ให้กู้มาแสดง หรือเอกสารอันเป็นหลักฐานแห่งการกู้ยืมนั้นได้เวนคืนแล้ว หรือได้แทงเพิกถอนลงในเอกสารนั้นแล้ว",
+            "category": "คดีแพ่ง",
+            "year": 2535,
+            "court_level": "ประมวลกฎหมายแพ่งและพาณิชย์",
+            "tags": ["กู้ยืมเงิน", "หลักฐานเป็นหนังสือ", "กฎหมายแพ่ง"],
+            "source_url": "https://www.krisdika.go.th"
+        },
+        {
+            "dika_number": "ป.พ.พ. มาตรา 1349",
+            "title": "การขอผ่านที่ดินแปลงอื่นเพื่อออกสู่ทางสาธารณะ (ทางจำเป็น)",
+            "content": "ที่ดินแปลงใดมีที่ดินแปลงอื่นล้อมอยู่จนไม่มีทางออกถึงทางสาธารณะได้ไซร้ ท่านว่าเจ้าของที่ดินแปลงนั้นจะผ่านที่ดินที่ล้อมอยู่ไปสู่ทางสาธารณะได้ ที่ดินแปลงใดมีทางออกถึงทางสาธารณะได้ แต่ต้องข้ามสระ บึง หรือทะเล หรือมีที่ชันอันระดับที่ดินกับทางสาธารณะสูงต่ำกว่ากันมากไซร้ ท่านว่าให้อ้างใช้ความในวรรคต้นได้ แต่ผู้ผ่านต้องเสียค่าทดแทนให้แก่เจ้าของที่ดินที่ล้อมอยู่เพื่อความเสียหายอันเกิดแต่เหตุที่มีทางผ่านนั้น",
+            "category": "ที่ดิน",
+            "year": 2535,
+            "court_level": "ประมวลกฎหมายแพ่งและพาณิชย์",
+            "tags": ["ที่ดิน", "ทางจำเป็น", "กฎหมายที่ดิน"],
+            "source_url": "https://www.krisdika.go.th"
+        },
+        {
+            "dika_number": "ป.อ. มาตรา 334",
+            "title": "ความผิดฐานลักทรัพย์",
+            "content": "ผู้ใดเอาทรัพย์ของผู้อื่น หรือที่ผู้อื่นเป็นเจ้าของรวมอยู่ด้วยไปโดยทุจริต ผู้นั้นกระทำความผิดฐานลักทรัพย์ ต้องระวางโทษจำคุกไม่เกินสามปี และปรับไม่เกินหกหมื่นบาท ซึ่งเป็นองค์ประกอบพื้นฐานของคดีเกี่ยวกับทรัพย์ในทางอาญา",
+            "category": "คดีอาญา",
+            "year": 2499,
+            "court_level": "ประมวลกฎหมายอาญา",
+            "tags": ["ลักทรัพย์", "คดีอาญา", "ความผิดเกี่ยวกับทรัพย์"],
+            "source_url": "https://www.krisdika.go.th"
+        },
+        {
+            "dika_number": "ฎีกาที่ 444/2563",
+            "title": "การบอกเลิกสัญญาจ้างแรงงานโดยไม่มีความผิดของลูกจ้าง ต้องบอกกล่าวล่วงหน้า",
+            "content": "การบอกเลิกสัญญาจ้างแรงงานที่ไม่มีกำหนดระยะเวลา นายจ้างสามารถบอกเลิกสัญญาได้โดยการบอกกล่าวล่วงหน้าเป็นหนังสือให้อีกฝ่ายหนึ่งทราบเมื่อถึงหรือก่อนจะถึงกำหนดจ่ายสินจ้างคราวใดคราวหนึ่ง เพื่อให้เป็นผลเลิกสัญญากันเมื่อถึงกำหนดจ่ายสินจ้างคราวถัดไปข้างหน้าตาม ป.พ.พ. มาตรา 582 หากนายจ้างเลิกจ้างทันทีโดยไม่ได้บอกกล่าวล่วงหน้าและลูกจ้างไม่ได้กระทำความผิดร้ายแรง นายจ้างต้องจ่ายค่าสินจ้างแทนการบอกกล่าวล่วงหน้า (ค่าตกใจ)",
+            "category": "คดีแรงงาน",
+            "year": 2563,
+            "court_level": "ศาลฎีกา",
+            "tags": ["เลิกจ้าง", "บอกกล่าวล่วงหน้า", "กฎหมายแรงงาน", "ค่าตกใจ"],
+            "source_url": "https://www.coj.go.th"
+        },
+        {
+            "dika_number": "ป.พ.พ. มาตรา 1564",
+            "title": "หน้าที่อุปการะเลี้ยงดูบุตร",
+            "content": "บิดามารดามีหน้าที่ร่วมกันอุปการะเลี้ยงดูและให้การศึกษาตามสมควรแก่บุตรในระหว่างที่เป็นผู้เยาว์ และมีหน้าที่อุปการะเลี้ยงดูบุตรซึ่งบรรลุนิติภาวะแล้วแต่เฉพาะผู้ทุพพลภาพและหาเลี้ยงตนเองมิได้ การฝ่าฝืนหน้าที่นี้ ทายาทย่อมสามารถฟ้องร้องเรียกค่าอุปการะเลี้ยงดูย้อนหลังได้",
+            "category": "คดีครอบครัว",
+            "year": 2535,
+            "court_level": "ประมวลกฎหมายแพ่งและพาณิชย์",
+            "tags": ["ครอบครัว", "เลี้ยงดูบุตร", "บุตรผู้เยาว์"],
+            "source_url": "https://www.krisdika.go.th"
+        }
+    ]
+    
+    # Save with embeddings
+    added_count = 0
+    for item in sample_data:
+        try:
+            # Combine dika_number, title, and content for a rich embedding context
+            embedding_text = f"{item['dika_number']} {item['title']}: {item['content']}"
+            vector = await get_embedding(embedding_text, db)
+            
+            ref = LegalReference(
+                dika_number=item["dika_number"],
+                title=item["title"],
+                content=item["content"],
+                category=item["category"],
+                year=item["year"],
+                court_level=item["court_level"],
+                tags=item["tags"],
+                source_url=item["source_url"],
+                embedding=vector
+            )
+            db.add(ref)
+            added_count += 1
+        except Exception as e:
+            print(f"Error seeding reference {item['dika_number']}: {e}")
+            
+    await db.flush()
+    return {"status": "success", "message": f"Successfully seeded {added_count} legal references with embeddings."}
+
+
+@router.get("/search-references")
+async def search_legal_references(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Semantic vector search for legal references"""
+    from app.models.models import LegalReference
+    from app.core.ai import get_embedding
+    
+    try:
+        query_vector = await get_embedding(q, db)
+        # Cosine distance similarity search
+        stmt = select(LegalReference).order_by(
+            LegalReference.embedding.cosine_distance(query_vector)
+        ).limit(limit)
+        res = await db.execute(stmt)
+        references = res.scalars().all()
+        
+        return {
+            "status": "success",
+            "query": q,
+            "results": [
+                {
+                    "id": str(ref.id),
+                    "dika_number": ref.dika_number,
+                    "title": ref.title,
+                    "content": ref.content,
+                    "category": ref.category,
+                    "year": ref.year,
+                    "court_level": ref.court_level,
+                    "tags": ref.tags,
+                    "source_url": ref.source_url
+                } for ref in references
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search Error: {str(e)}")
 
 
 @router.post("/summarize")

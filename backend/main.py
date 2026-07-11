@@ -45,6 +45,15 @@ async def lifespan(app: FastAPI):
         print(f"Skipping uploads directory creation: {e}")
     from sqlalchemy import text
     from app.models import models
+    
+    # Enable pgvector extension (for PostgreSQL)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            print("pgvector extension verified/enabled.")
+    except Exception as e:
+        print(f"Skipping extension vector registration: {e}")
+        
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
@@ -74,6 +83,14 @@ async def lifespan(app: FastAPI):
                 print(f"Added column {col_name} to {table} table.")
         except Exception:
             pass
+
+    # Add embedding column to legal_references table if not exists (for pgvector)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE legal_references ADD COLUMN embedding vector(768);"))
+            print("Added column embedding to legal_references table.")
+    except Exception:
+        pass
     print("✅ Database tables created/verified")
     print("🚀 Lawyer Tech ERP API is running!")
     yield
