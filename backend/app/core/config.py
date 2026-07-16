@@ -53,6 +53,11 @@ class Settings(BaseSettings):
 
     def __init__(self, **values):
         super().__init__(**values)
+        if self.DATABASE_URL:
+            self.DATABASE_URL = self.DATABASE_URL.strip().replace("\\n", "").replace("\n", "")
+        if self.DATABASE_URL_SYNC:
+            self.DATABASE_URL_SYNC = self.DATABASE_URL_SYNC.strip().replace("\\n", "").replace("\n", "")
+            
         vercel_url = os.environ.get("POSTGRES_PRISMA_URL") or os.environ.get("POSTGRES_URL")
         if vercel_url:
             async_url = vercel_url
