@@ -105,27 +105,35 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          {navItems.map(({ href, icon: Icon, label, phase }) => {
-            const isActive = pathname.startsWith(href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`sidebar-link ${isActive ? 'active' : ''}`}
-                title={!sidebarOpen ? label : undefined}
-              >
-                <Icon className={`sidebar-icon w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                {sidebarOpen && (
-                  <>
-                    <span className="flex-1 truncate">{label}</span>
-                    <span className={`text-[10px] font-bold ${phaseColors[phase]} opacity-60`}>
-                      P{phase}
-                    </span>
-                  </>
-                )}
-              </Link>
-            )
-          })}
+          {navItems
+            .filter(({ href }) => {
+              const isAdminOrPartner = user?.role === 'admin' || user?.role === 'partner'
+              if (!isAdminOrPartner && (href === '/hr' || href === '/billing')) {
+                return false
+              }
+              return true
+            })
+            .map(({ href, icon: Icon, label, phase }) => {
+              const isActive = pathname.startsWith(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`sidebar-link ${isActive ? 'active' : ''}`}
+                  title={!sidebarOpen ? label : undefined}
+                >
+                  <Icon className={`sidebar-icon w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                  {sidebarOpen && (
+                    <>
+                      <span className="flex-1 truncate">{label}</span>
+                      <span className={`text-[10px] font-bold ${phaseColors[phase]} opacity-60`}>
+                        P{phase}
+                      </span>
+                    </>
+                  )}
+                </Link>
+              )
+            })}
         </nav>
 
         {/* Bottom: User + Settings */}

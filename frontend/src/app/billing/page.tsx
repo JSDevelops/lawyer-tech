@@ -5,7 +5,7 @@ import {
   CreditCard, Clock, Plus, Trash2, Check, X,
   TrendingUp, TrendingDown, DollarSign, Search,
   FileText, Calendar, Printer, Upload, Link2,
-  RefreshCw, CheckSquare, ChevronRight, Briefcase
+  RefreshCw, CheckSquare, ChevronRight, Briefcase, AlertCircle
 } from 'lucide-react'
 
 // ==============================
@@ -126,10 +126,21 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function FinancePage() {
+  const [currentUserRole, setCurrentUserRole] = useState('')
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'time-entries' | 'expenses'>('dashboard')
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const userProfileStr = localStorage.getItem('user')
+      if (userProfileStr) {
+        const profile = JSON.parse(userProfileStr)
+        setCurrentUserRole(profile.role || 'clerk')
+      }
+    }
+  }, [])
 
   // Database lists
   const [clients, setClients] = useState<Client[]>([])
@@ -556,6 +567,20 @@ export default function FinancePage() {
     })
 
     setInvoiceModalOpen(true)
+  }
+
+  if (currentUserRole && currentUserRole !== 'admin' && currentUserRole !== 'partner') {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 bg-dark-surface border border-dark-border rounded-2xl">
+        <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-400 mb-4">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">ไม่มีสิทธิ์เข้าถึงหน้านี้</h3>
+        <p className="text-slate-400 text-sm max-w-sm">
+          คุณต้องมีสิทธิ์ระดับ ผู้ดูแลระบบ (Admin) หรือ หุ้นส่วน (Partner) จึงจะสามารถดูหรือจัดการระบบบัญชีและการเงินได้
+        </p>
+      </div>
+    )
   }
 
   return (

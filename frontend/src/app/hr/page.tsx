@@ -168,8 +168,12 @@ export default function HRPage() {
       const userProfileStr = localStorage.getItem('user')
       if (userProfileStr) {
         const profile = JSON.parse(userProfileStr)
-        setCurrentUserRole(profile.role || 'clerk')
+        const role = profile.role || 'clerk'
+        setCurrentUserRole(role)
         setCurrentUserId(profile.id || '')
+        if (role !== 'admin' && role !== 'partner') {
+          setActiveTab('attendance')
+        }
       }
     } catch (e) {
       console.error(e)
@@ -549,16 +553,18 @@ export default function HRPage() {
 
       {/* Tabs Menu */}
       <div className="flex border-b border-white/5 space-x-2">
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`px-5 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'employees'
-              ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4" /> รายชื่อพนักงาน ({employees.length})
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('employees')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === 'employees'
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4" /> รายชื่อพนักงาน ({employees.length})
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('attendance')}
@@ -582,16 +588,18 @@ export default function HRPage() {
           <Calendar className="w-4 h-4" /> ประวัติการลาหยุด ({leaves.length})
         </button>
 
-        <button
-          onClick={() => setActiveTab('payroll')}
-          className={`px-5 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'payroll'
-              ? 'border-pink-500 text-pink-400 bg-pink-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" /> เงินเดือน & สลิป
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('payroll')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === 'payroll'
+                ? 'border-pink-500 text-pink-400 bg-pink-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" /> เงินเดือน & สลิป
+          </button>
+        )}
       </div>
 
       {/* Message Notifications */}
