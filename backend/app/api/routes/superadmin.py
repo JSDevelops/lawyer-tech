@@ -464,7 +464,17 @@ async def update_settings(req: SettingsUpdateRequest, db: AsyncSession = Depends
     setting.maintenance_mode = req.maintenance_mode
     setting.allow_new_registrations = req.allow_new_registrations
     
-    await log_action(db, "UPDATE_SETTINGS", "Updated global system, AI and payment configurations", current_user["email"])
+    # Add audit log entry inline (avoids nested flush conflict)
+    try:
+        log = SystemAuditLog(
+            action="UPDATE_SETTINGS",
+            details="Updated global system, AI and payment configurations",
+            performed_by_email=current_user["email"]
+        )
+        db.add(log)
+    except Exception as log_err:
+        print(f"Warning: audit log skipped: {log_err}")
+    
     return {"status": "success", "message": "บันทึกการตั้งค่าระบบสำเร็จ"}
 
 
