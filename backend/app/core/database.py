@@ -18,7 +18,7 @@ if _is_sqlite:
 else:
     connect_args = {}
     if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-        connect_args["ssl"] = "require"
+        connect_args["ssl"] = True
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=settings.DEBUG,
