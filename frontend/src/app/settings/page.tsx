@@ -692,49 +692,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* AI Connection Settings */}
-          {isEditableRole && (
-            <div className="pt-4 border-t border-white/5 space-y-4">
-              <h4 className="text-sm font-semibold text-white">ตั้งค่าการเชื่อมต่อ Google AI Studio (Gemini)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-slate-400">Gemini API Key (จาก Google AI Studio)</label>
-                  <input
-                    type="password"
-                    className="input-field"
-                    placeholder={systemSettings.gemini_api_key_override ? '••••••••••••••••' : 'ใส่คีย์ API Key ที่ขึ้นต้นด้วย AIzaSy...'}
-                    value={systemSettings.gemini_api_key_override || ''}
-                    onChange={e => setSystemSettings({ ...systemSettings, gemini_api_key_override: e.target.value })}
-                  />
-                  <p className="text-[11px] text-slate-500">
-                    สร้าง API Key ฟรีได้ที่{' '}
-                    <a
-                      href="https://aistudio.google.com/"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary-400 hover:underline"
-                    >
-                      Google AI Studio
-                    </a>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-slate-400">โมเดลประมวลผล (Gemini Model)</label>
-                  <select
-                    className="input-field"
-                    value={systemSettings.gemini_model || 'gemini-2.0-flash'}
-                    onChange={e => setSystemSettings({ ...systemSettings, gemini_model: e.target.value })}
-                  >
-                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (แนะนำ - เร็วและแม่นยำสูง)</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (ฉลาดและวิเคราะห์ละเอียดที่สุด)</option>
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (โมเดลมาตรฐานดั้งเดิม)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
           {isEditableRole && (
             <div className="flex justify-end pt-4 border-t border-white/5">
               <button

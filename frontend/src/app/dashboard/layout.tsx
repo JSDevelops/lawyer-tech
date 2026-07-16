@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Scale, LayoutDashboard, Users, FileText, Calendar,
   FolderOpen, CreditCard, Bot, Settings, LogOut,
-  Bell, Search, Menu, X, ChevronRight, UserCheck
+  Bell, Search, Menu, X, ChevronRight, UserCheck, ShieldCheck
 } from 'lucide-react'
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/hr', icon: UserCheck, label: 'บริหารงานบุคคล', phase: 3 },
   { href: '/billing', icon: CreditCard, label: 'บัญชีและการเงิน', phase: 4 },
   { href: '/ai', icon: Bot, label: 'AI Assistant', phase: 3 },
+  { href: '/superadmin', icon: ShieldCheck, label: 'ระบบควบคุมกลาง', phase: 0, isSuperAdminOnly: true }
 ]
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -53,6 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   const phaseColors: Record<number, string> = {
+    0: 'text-rose-400',
     1: 'text-emerald-400',
     2: 'text-blue-400',
     3: 'text-purple-400',
@@ -106,7 +108,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
           {navItems
-            .filter(({ href }) => {
+            .filter(({ href, isSuperAdminOnly }) => {
+              const isSuperAdmin = user?.role === 'superadmin'
+              if (isSuperAdminOnly && !isSuperAdmin) {
+                return false
+              }
+              if (isSuperAdmin) {
+                return true
+              }
               const isAdminOrPartner = user?.role === 'admin' || user?.role === 'partner'
               if (!isAdminOrPartner && (href === '/hr' || href === '/billing')) {
                 return false

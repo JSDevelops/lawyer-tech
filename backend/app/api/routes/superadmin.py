@@ -55,8 +55,8 @@ class PlanCreateRequest(BaseModel):
 # ==============================
 
 def require_admin(current_user=Depends(get_current_user)):
-    """ความปลอดภัย: อนุญาตเฉพาะผู้ใช้ที่มีบทบาทเป็น admin หรือ partner เท่านั้น"""
-    if current_user["role"] not in [UserRole.ADMIN.value, UserRole.PARTNER.value]:
+    """ความปลอดภัย: อนุญาตเฉพาะผู้ใช้ที่มีบทบาทเป็น superadmin เท่านั้น"""
+    if current_user["role"] != UserRole.SUPERADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="คุณไม่มีสิทธิ์เข้าถึงฟังก์ชันผู้ดูแลระบบส่วนกลาง"

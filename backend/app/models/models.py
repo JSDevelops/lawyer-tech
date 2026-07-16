@@ -19,6 +19,7 @@ from pgvector.sqlalchemy import Vector
 # ==============================
 
 class UserRole(str, enum.Enum):
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
     PARTNER = "partner"
     LAWYER = "lawyer"
