@@ -68,6 +68,29 @@ export default function SettingsPage() {
     default_case_priority: 'medium',
   })
 
+  // System settings (for superadmin and AI key)
+  const [systemSettings, setSystemSettings] = useState<any>({
+    smtp_host: 'smtp.gmail.com',
+    smtp_port: 587,
+    smtp_user: 'noreply@lawyertech.co.th',
+    smtp_password: '••••••••',
+    gemini_api_key_override: '',
+    gemini_model: 'gemini-2.0-flash',
+    openai_api_key: '',
+    openai_model: 'gpt-4o',
+    bank_name: 'ธนาคารกสิกรไทย',
+    bank_account_name: 'บริษัท เลเยอร์ เทค จำกัด',
+    bank_account_number: '',
+    promptpay_id: '',
+    enable_bank_transfer: true,
+    stripe_publishable_key: '',
+    stripe_secret_key: '',
+    stripe_webhook_secret: '',
+    enable_stripe: false,
+    maintenance_mode: false,
+    allow_new_registrations: true
+  })
+
   // Password States
   const [passwords, setPasswords] = useState({
     old_password: '',
@@ -101,9 +124,11 @@ export default function SettingsPage() {
       const profileRes = await fetch(`${API}/settings/profile`, {
         headers: getHeaders()
       })
+      let userRole = ''
       if (profileRes.ok) {
         const profileData = await profileRes.json()
         setProfile(profileData)
+        userRole = profileData.role
       } else {
         toast.error('ไม่สามารถโหลดข้อมูลโปรไฟล์ส่วนตัวได้')
       }
@@ -117,6 +142,17 @@ export default function SettingsPage() {
         setFirm(firmData)
       } else {
         toast.error('ไม่สามารถโหลดข้อมูลตั้งค่าสำนักงานได้')
+      }
+
+      // 3. Get System Settings if admin/partner
+      if (userRole === 'admin' || userRole === 'partner') {
+        const systemRes = await fetch(`${API}/superadmin/settings`, {
+          headers: getHeaders()
+        })
+        if (systemRes.ok) {
+          const systemData = await systemRes.json()
+          setSystemSettings(systemData)
+        }
       }
     } catch (err) {
       console.error(err)
@@ -190,17 +226,36 @@ export default function SettingsPage() {
 
     setLoading(true)
     try {
+      // 1. Save Firm Settings
       const res = await fetch(`${API}/settings/firm`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(firm)
       })
 
-      if (res.ok) {
-        toast.success('บันทึกการตั้งค่าสำนักงานกฎหมายเรียบร้อยแล้ว')
-      } else {
+      if (!res.ok) {
         const errData = await res.json()
         toast.error(errData.detail || 'ไม่มีสิทธิ์ในการแก้ไขการตั้งค่าสำนักงาน')
+        setLoading(false)
+        return
+      }
+
+      // 2. Save System Settings if admin/partner
+      if (isEditableRole) {
+        const sysRes = await fetch(`${API}/superadmin/settings`, {
+          method: 'PUT',
+          headers: getHeaders(),
+          body: JSON.stringify(systemSettings)
+        })
+
+        if (sysRes.ok) {
+          toast.success('บันทึกการตั้งค่าสำนักงานและระบบ AI เรียบร้อยแล้ว')
+        } else {
+          const errData = await sysRes.json()
+          toast.error(errData.detail || 'เกิดข้อผิดพลาดในการบันทึกค่าระบบกลาง')
+        }
+      } else {
+        toast.success('บันทึกการตั้งค่าสำนักงานกฎหมายเรียบร้อยแล้ว')
       }
     } catch {
       toast.error('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว')
@@ -636,6 +691,49 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          {/* AI Connection Settings */}
+          {isEditableRole && (
+            <div className="pt-4 border-t border-white/5 space-y-4">
+              <h4 className="text-sm font-semibold text-white">ตั้งค่าการเชื่อมต่อ Google AI Studio (Gemini)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-400">Gemini API Key (จาก Google AI Studio)</label>
+                  <input
+                    type="password"
+                    className="input-field"
+                    placeholder={systemSettings.gemini_api_key_override ? '••••••••••••••••' : 'ใส่คีย์ API Key ที่ขึ้นต้นด้วย AIzaSy...'}
+                    value={systemSettings.gemini_api_key_override || ''}
+                    onChange={e => setSystemSettings({ ...systemSettings, gemini_api_key_override: e.target.value })}
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    สร้าง API Key ฟรีได้ที่{' '}
+                    <a
+                      href="https://aistudio.google.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary-400 hover:underline"
+                    >
+                      Google AI Studio
+                    </a>
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-400">โมเดลประมวลผล (Gemini Model)</label>
+                  <select
+                    className="input-field"
+                    value={systemSettings.gemini_model || 'gemini-2.0-flash'}
+                    onChange={e => setSystemSettings({ ...systemSettings, gemini_model: e.target.value })}
+                  >
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (แนะนำ - เร็วและแม่นยำสูง)</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (ฉลาดและวิเคราะห์ละเอียดที่สุด)</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (โมเดลมาตรฐานดั้งเดิม)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {isEditableRole && (
             <div className="flex justify-end pt-4 border-t border-white/5">
