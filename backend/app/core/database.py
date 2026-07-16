@@ -1,5 +1,6 @@
 """Database Connection — SQLAlchemy Async + PGVector"""
 
+import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
@@ -18,7 +19,10 @@ if _is_sqlite:
 else:
     connect_args = {}
     if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-        connect_args["ssl"] = True
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ssl_context
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=settings.DEBUG,
