@@ -118,126 +118,134 @@ export default function AiPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in h-full">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-          <Bot className="w-7 h-7 text-amber-400" />
-          AI Legal Assistant
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">ผู้ช่วย AI สำหรับงานกฎหมาย — ขับเคลื่อนด้วย Gemini + LangChain</p>
+    <div className="flex flex-col animate-fade-in" style={{ height: 'calc(100dvh - 56px - 4rem)' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div>
+          <h1 className="text-lg lg:text-xl font-bold text-white flex items-center gap-2">
+            <span className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+              <Bot className="w-4 h-4 lg:w-5 lg:h-5 text-amber-400" />
+            </span>
+            AI Legal Assistant
+          </h1>
+          <p className="text-slate-500 text-xs mt-0.5 hidden sm:block">ขับเคลื่อนด้วย Gemini + LangChain RAG</p>
+        </div>
+        <span className="badge badge-free text-[10px]">⚡ AI Online</span>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10 pb-0">
+      {/* Tabs — scrollable on mobile */}
+      <div className="flex gap-1 border-b border-white/8 pb-0 overflow-x-auto flex-shrink-0 no-scrollbar">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all -mb-px whitespace-nowrap flex-shrink-0
               ${activeTab === id
-                ? 'border-primary-500 text-primary-300'
+                ? 'border-indigo-500 text-indigo-300'
                 : 'border-transparent text-slate-500 hover:text-slate-300'}`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-3.5 h-3.5" />
             {label}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
+      {/* Tab Content — takes remaining height */}
+      <div className="flex-1 overflow-hidden mt-4">
       {activeTab === 'chat' && (
-        <div className="card flex flex-col h-[calc(100vh-300px)]">
+        <div className="card flex flex-col h-full" style={{ maxHeight: '100%' }}>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+          <div className="flex-1 overflow-y-auto space-y-3 pb-2 pr-1">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'ai' && (
+                  <div className="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0 mr-2 mt-1">
+                    <Bot className="w-3.5 h-3.5 text-amber-400" />
+                  </div>
+                )}
                 <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
-                  <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                  <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.text}</p>
                 </div>
               </div>
             ))}
             {loading && (
-              <div className="flex justify-start">
+              <div className="flex justify-start items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-3.5 h-3.5 text-amber-400" />
+                </div>
                 <div className="chat-bubble-ai flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary-400" />
-                  <span className="text-slate-400">กำลังคิด...</span>
+                  <span className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                  <span className="text-slate-400 text-sm">กำลังคิด...</span>
                 </div>
               </div>
             )}
           </div>
           {/* Input */}
-          <div className="pt-4 border-t border-white/5 flex gap-3">
+          <div className="pt-3 border-t border-white/5 flex gap-2 flex-shrink-0">
             <input
-              className="input-field flex-1"
-              placeholder="ถามเรื่องกฎหมาย, วิเคราะห์คดี, หรือขอคำแนะนำ..."
+              className="input-field flex-1 text-sm"
+              placeholder="ถามเรื่องกฎหมาย, วิเคราะห์คดี..."
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
             />
-            <button onClick={sendChat} disabled={loading} className="btn-primary px-4">
-              <Send className="w-4 h-4" />
+            <button
+              onClick={sendChat}
+              disabled={loading || !input.trim()}
+              className="btn-primary w-11 h-11 p-0 flex-shrink-0"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           </div>
         </div>
       )}
 
       {activeTab === 'research' && (
-        <div className="card space-y-4">
-          <h3 className="font-semibold text-white">🔎 ค้นหาฎีกาและกฎหมายที่เกี่ยวข้อง</h3>
-          <p className="text-xs text-slate-400">ระบบ AI จะสืบค้นข้อกฎหมาย มาตรา หรือคำพิพากษาศาลฎีกาที่ตรงกับเรื่องราวของคุณมาใช้วิเคราะห์คำตอบโดยอัตโนมัติ</p>
+        <div className="card space-y-4 overflow-y-auto h-full">
+          <div>
+            <h3 className="font-semibold text-white text-sm">🔎 ค้นหาฎีกาและกฎหมายที่เกี่ยวข้อง</h3>
+            <p className="text-xs text-slate-500 mt-1">AI จะสืบค้นข้อกฎหมาย มาตรา และคำพิพากษาศาลฎีกาโดยอัตโนมัติ</p>
+          </div>
           <textarea
-            className="input-field h-28 resize-none"
-            placeholder="ตัวอย่าง: กู้ยืมเงินทางไลน์แล้วไม่คืน แต่ไม่มีหลักฐานสัญญากระดาษเลย จะฟ้องร้องคดีแพ่งได้หรือไม่..."
+            className="input-field h-28 resize-none text-sm"
+            placeholder="ตัวอย่าง: กู้ยืมเงินทางไลน์แล้วไม่คืน ไม่มีหลักฐานสัญญา จะฟ้องร้องได้ไหม..."
             value={researchQ}
             onChange={e => setResearchQ(e.target.value)}
           />
-          <button onClick={doResearch} disabled={loading} className="btn-primary flex items-center gap-2">
+          <button onClick={doResearch} disabled={loading} className="btn-primary flex items-center gap-2 text-sm">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             ค้นหาวิเคราะห์ด้วย AI
           </button>
-          
           {researchResult && (
-            <div className="space-y-4 mt-6">
-              <div className="glass-lighter rounded-2xl p-5 text-sm text-slate-200 whitespace-pre-wrap leading-relaxed border border-white/5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
-                <h4 className="font-bold text-base text-primary-300 mb-3 border-b border-white/10 pb-2">ผลวิเคราะห์คดีความโดย AI</h4>
+            <div className="space-y-4">
+              <div className="glass-lighter rounded-2xl p-4 text-sm text-slate-200 whitespace-pre-wrap leading-relaxed border border-white/5 relative overflow-hidden">
+                <h4 className="font-bold text-sm text-indigo-300 mb-3 border-b border-white/10 pb-2">ผลวิเคราะห์คดีความโดย AI</h4>
                 {researchResult}
               </div>
-
               {references && references.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2 mt-4">
-                    <FileText className="w-4 h-4 text-amber-400" />
-                    เอกสารข้อกฎหมายและคำพิพากษาศาลฎีกาที่เกี่ยวข้อง (RAG Context)
+                  <h4 className="text-xs font-semibold text-slate-400 flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 text-amber-400" />
+                    ข้อกฎหมายและฎีกาที่อ้างอิง ({references.length} รายการ)
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {references.map((ref, idx) => (
-                      <div key={idx} className="p-4 rounded-xl bg-white/3 border border-white/5 hover:border-amber-500/20 transition-all flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="badge bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs font-semibold px-2 py-0.5 rounded">
-                              {ref.dika_number}
-                            </span>
-                            <span className="text-xs text-slate-500 font-medium">
-                              {ref.court_level}
-                            </span>
-                          </div>
-                          <h5 className="font-bold text-sm text-white mt-2 mb-1 leading-snug">{ref.title}</h5>
-                          <p className="text-xs text-slate-400 line-clamp-4 leading-relaxed mt-1">{ref.content}</p>
+                      <div key={idx} className="p-3 rounded-xl bg-white/3 border border-white/5 hover:border-amber-500/20 transition-all">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="badge bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">{ref.dika_number}</span>
+                          <span className="text-[10px] text-slate-500">{ref.court_level}</span>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
-                          <span className="text-slate-500 font-sans">ปีที่เผยแพร่: {ref.year || 'N/A'}</span>
-                          {ref.source_url && (
-                            <a
-                              href={ref.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary-400 hover:underline hover:text-primary-300"
-                            >
-                              ลิงก์ข้อมูลต้นฉบับ →
-                            </a>
-                          )}
-                        </div>
+                        <h5 className="font-semibold text-xs text-white mb-1 leading-snug">{ref.title}</h5>
+                        <p className="text-[11px] text-slate-400 line-clamp-3 leading-relaxed">{ref.content}</p>
+                        {ref.source_url && (
+                          <a href={ref.source_url} target="_blank" rel="noreferrer"
+                            className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-2 block">ลิงก์ต้นฉบับ →</a>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -249,15 +257,15 @@ export default function AiPage() {
       )}
 
       {activeTab === 'summarize' && (
-        <div className="card space-y-4">
-          <h3 className="font-semibold text-white">📝 สรุปข้อเท็จจริงคดีเป็น 1 หน้า</h3>
+        <div className="card space-y-4 overflow-y-auto h-full">
+          <h3 className="font-semibold text-white text-sm">📝 สรุปข้อเท็จจริงคดีเป็น 1 หน้า</h3>
           <textarea
-            className="input-field h-40 resize-none"
+            className="input-field h-36 resize-none text-sm"
             placeholder="วางข้อเท็จจริงหรือเนื้อหาคดีที่ต้องการให้ AI สรุป..."
             value={summarizeText}
             onChange={e => setSummarizeText(e.target.value)}
           />
-          <button onClick={doSummarize} disabled={loading} className="btn-primary flex items-center gap-2">
+          <button onClick={doSummarize} disabled={loading} className="btn-primary flex items-center gap-2 text-sm">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
             สรุปคดี
           </button>
@@ -270,16 +278,12 @@ export default function AiPage() {
       )}
 
       {activeTab === 'draft' && (
-        <div className="card space-y-4">
-          <h3 className="font-semibold text-white">📃 ร่างเอกสารทางกฎหมาย</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="card space-y-4 overflow-y-auto h-full">
+          <h3 className="font-semibold text-white text-sm">📃 ร่างเอกสารทางกฎหมาย</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-slate-300 mb-2">ประเภทเอกสาร</label>
-              <select
-                className="input-field"
-                value={draftType}
-                onChange={e => setDraftType(e.target.value)}
-              >
+              <label className="block text-xs text-slate-400 mb-1.5">ประเภทเอกสาร</label>
+              <select className="input-field text-sm" value={draftType} onChange={e => setDraftType(e.target.value)}>
                 <option value="complaint">คำฟ้อง</option>
                 <option value="contract">สัญญา</option>
                 <option value="power_of_attorney">หนังสือมอบอำนาจ</option>
@@ -288,46 +292,40 @@ export default function AiPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-300 mb-2">ชื่อลูกความ</label>
-              <input
-                className="input-field"
-                placeholder="นาย/นาง/นางสาว..."
-                value={draftClient}
-                onChange={e => setDraftClient(e.target.value)}
-              />
+              <label className="block text-xs text-slate-400 mb-1.5">ชื่อลูกความ</label>
+              <input className="input-field text-sm" placeholder="นาย/นาง/นางสาว..." value={draftClient} onChange={e => setDraftClient(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="block text-sm text-slate-300 mb-2">รายละเอียดคดี</label>
+            <label className="block text-xs text-slate-400 mb-1.5">รายละเอียดคดี</label>
             <textarea
-              className="input-field h-32 resize-none"
+              className="input-field h-28 resize-none text-sm"
               placeholder="อธิบายข้อเท็จจริง ประเด็น และสิ่งที่ต้องการในเอกสาร..."
               value={draftDetails}
               onChange={e => setDraftDetails(e.target.value)}
             />
           </div>
-          <button onClick={doDraft} disabled={loading} className="btn-primary flex items-center gap-2">
+          <button onClick={doDraft} disabled={loading} className="btn-primary flex items-center gap-2 text-sm">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus2 className="w-4 h-4" />}
             ร่างเอกสาร
           </button>
           {draftResult && (
             <div className="glass-lighter rounded-xl p-4">
-              <div className="flex justify-between mb-2">
-                <span className="text-xs text-amber-400 font-medium">⚠️ ร่างเบื้องต้น — ต้องผ่านการตรวจสอบจากทนายก่อนใช้งาน</span>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[11px] text-amber-400 font-medium">⚠️ ร่างเบื้องต้น — ต้องผ่านการตรวจสอบจากทนายก่อนใช้งาน</span>
                 <button
                   onClick={() => navigator.clipboard.writeText(draftResult).then(() => toast.success('คัดลอกแล้ว'))}
-                  className="text-xs text-primary-400 hover:text-primary-300"
+                  className="text-xs text-indigo-400 hover:text-indigo-300"
                 >
                   คัดลอก
                 </button>
               </div>
-              <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                {draftResult}
-              </div>
+              <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{draftResult}</div>
             </div>
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }
