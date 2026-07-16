@@ -19,7 +19,7 @@ if _is_sqlite:
 else:
     connect_args = {}
     if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-        ssl_context = ssl.create_default_context()
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         connect_args["ssl"] = ssl_context
