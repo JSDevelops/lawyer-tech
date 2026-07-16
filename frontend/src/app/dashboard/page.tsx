@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Users, Scale, FileText, CreditCard, TrendingUp,
-  AlertCircle, Calendar, Bot, ArrowUpRight, Loader2,
-  ChevronRight, Clock, CheckCircle2
+  AlertCircle, Calendar, Bot, ArrowUpRight,
+  ChevronRight, Clock, Sparkles, Plus
 } from 'lucide-react'
 import Link from 'next/link'
+import { DashboardSkeleton } from '@/components/ui/skeleton'
 
 interface StatsData {
   total_clients: number
@@ -188,99 +189,110 @@ export default function DashboardPage() {
     color: categoryColors[catName]
   }))
 
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-400" />
-          <span className="text-sm text-slate-400 font-medium">กำลังโหลดข้อมูลแดชบอร์ด...</span>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            ภาพรวมระบบ Lawyer Tech ERP — {new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}
+          <h1 className="text-xl lg:text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-slate-500 text-xs lg:text-sm mt-0.5">
+            {new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}
           </p>
         </div>
-        <Link href="/ai" className="btn-gold flex items-center gap-2 self-start">
-          <Bot className="w-4 h-4" />
-          AI Assistant
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href="/cases" className="btn-secondary flex items-center gap-2 text-xs py-2 px-3">
+            <Plus className="w-3.5 h-3.5" />
+            เพิ่มคดีใหม่
+          </Link>
+          <Link href="/ai" className="btn-gold flex items-center gap-2 text-xs py-2 px-3">
+            <Sparkles className="w-3.5 h-3.5" />
+            AI Assistant
+          </Link>
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {statCards.map((card) => (
-          <Link key={card.label} href={card.href}>
-            <div className={`stat-card group cursor-pointer border ${card.border}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-11 h-11 ${card.bg} rounded-xl flex items-center justify-center border ${card.border}`}>
-                  <card.icon className={`w-5 h-5 ${card.color}`} />
+          <Link key={card.label} href={card.href} className="block">
+            <div className={`stat-card group cursor-pointer border ${card.border} h-full`}>
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-9 h-9 lg:w-11 lg:h-11 ${card.bg} rounded-xl flex items-center justify-center border ${card.border}`}>
+                  <card.icon className={`w-4 h-4 lg:w-5 lg:h-5 ${card.color}`} />
                 </div>
-                <ArrowUpRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 transition-colors" />
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{card.value}</div>
-              <div className="text-slate-400 text-sm">{card.label}</div>
-              <div className={`text-xs ${card.color} mt-2`}>{card.change}</div>
+              <div className="text-xl lg:text-2xl font-bold text-white mb-0.5">{card.value}</div>
+              <div className="text-slate-400 text-xs lg:text-sm leading-tight">{card.label}</div>
+              <div className={`text-[11px] ${card.color} mt-1.5 hidden sm:block`}>{card.change}</div>
             </div>
           </Link>
         ))}
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         {/* Recent Cases */}
         <div className="xl:col-span-2 card">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-white flex items-center gap-2">
-              <Scale className="w-5 h-5 text-primary-400" />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-white flex items-center gap-2 text-sm">
+              <Scale className="w-4 h-4 text-indigo-400" />
               คดีล่าสุด
             </h2>
-            <Link href="/cases" className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1">
+            <Link href="/cases" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
               ดูทั้งหมด <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>คดี</th>
                   <th>ลูกความ</th>
-                  <th>หมวด</th>
+                  <th className="hidden lg:table-cell">หมวด</th>
                   <th>สถานะ</th>
-                  <th>วันที่</th>
+                  <th className="hidden sm:table-cell">วันที่</th>
                 </tr>
               </thead>
               <tbody>
-                {recentCases.map((c) => (
+                {recentCases.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-slate-600 text-sm">ยังไม่มีคดีในระบบ</td></tr>
+                ) : recentCases.map((c) => (
                   <tr key={c.id} className="hover:bg-white/2 cursor-pointer transition-colors">
-                    <td>
-                      <span className="text-white font-medium hover:text-primary-300 transition-colors line-clamp-1">
-                        {c.title}
-                      </span>
-                    </td>
-                    <td className="text-slate-400">{c.client}</td>
-                    <td>
-                      <span className="badge bg-white/5 text-slate-400 border-white/10">{c.category}</span>
-                    </td>
-                    <td>
-                      <span className={`badge ${statusConfig[c.status]?.cls}`}>
-                        {statusConfig[c.status]?.label}
-                      </span>
-                    </td>
-                    <td className="text-slate-500 text-xs">{c.date}</td>
+                    <td><span className="text-white font-medium text-sm line-clamp-1">{c.title}</span></td>
+                    <td className="text-slate-400 text-sm">{c.client}</td>
+                    <td className="hidden lg:table-cell"><span className="badge bg-white/5 text-slate-400 border-white/10 text-[10px]">{c.category}</span></td>
+                    <td><span className={`badge text-[10px] ${statusConfig[c.status]?.cls}`}>{statusConfig[c.status]?.label}</span></td>
+                    <td className="hidden sm:table-cell text-slate-500 text-xs">{c.date}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {recentCases.length === 0 ? (
+              <div className="text-center py-8 text-slate-600 text-sm">ยังไม่มีคดีในระบบ</div>
+            ) : recentCases.map((c) => (
+              <Link key={c.id} href="/cases" className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/5 hover:bg-white/5 transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
+                  <Scale className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{c.title}</p>
+                  <p className="text-xs text-slate-500">{c.client} · {c.date}</p>
+                </div>
+                <span className={`badge text-[10px] flex-shrink-0 ${statusConfig[c.status]?.cls}`}>
+                  {statusConfig[c.status]?.label}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
 

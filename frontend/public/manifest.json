@@ -1,0 +1,49 @@
+{
+  "name": "Lawyer Tech ERP — ระบบบริหารสำนักงานกฎหมาย",
+  "short_name": "Lawyer Tech",
+  "description": "ระบบ ERP และ AI สำหรับสำนักงานกฎหมาย — จัดการลูกความ คดี เอกสาร และการเงินครบวงจร",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "lang": "th",
+  "scope": "/",
+  "id": "/",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "ภาพรวมระบบ"
+    },
+    {
+      "name": "คดีใหม่",
+      "url": "/cases",
+      "description": "จัดการคดีความ"
+    },
+    {
+      "name": "AI Assistant",
+      "url": "/ai",
+      "description": "ผู้ช่วย AI กฎหมาย"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false,
+  "handle_links": "preferred"
+}
