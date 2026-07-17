@@ -56,6 +56,21 @@ async def require_tenant(current_user: dict = Depends(get_current_user)) -> uuid
         )
 
 
+async def require_tenant_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    RBAC guard: only admin or partner roles within a tenant can proceed.
+    Raises 403 for lawyer, clerk, and superadmin.
+    Used on Tenant Admin-only endpoints (e.g. create employee, payroll).
+    """
+    role = current_user.get("role", "")
+    if role not in ["admin", "partner"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="เฉพาะ Admin หรือ Partner ของสำนักงานเท่านั้นที่มีสิทธิ์ดำเนินการนี้"
+        )
+    return current_user
+
+
 def build_tenant_filter(model, tenant_id: Optional[uuid.UUID]):
     """
     Return a list of SQLAlchemy WHERE conditions for tenant isolation.

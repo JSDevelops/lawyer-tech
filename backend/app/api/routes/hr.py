@@ -10,7 +10,7 @@ from sqlalchemy import select, func, or_, and_
 
 from app.core.database import get_db
 from app.core.security import get_current_user, hash_password
-from app.core.dependencies import get_tenant_id, build_tenant_filter
+from app.core.dependencies import get_tenant_id, build_tenant_filter, require_tenant_admin
 from app.models.models import User, UserRole, EmployeeAttendance, EmployeeLeave, EmployeeSalary
 
 router = APIRouter()
@@ -151,14 +151,10 @@ async def list_employees(
 async def create_employee(
     payload: EmployeeCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_tenant_admin),  # 🔒 Only admin/partner
+    tenant_id = Depends(get_tenant_id),
 ):
-    """เพิ่มพนักงานคนใหม่เข้าระบบ"""
-    # Verify current user is admin/partner
-    role_str = current_user.get("role")
-    if role_str not in ["admin", "partner"]:
-        raise HTTPException(status_code=403, detail="สิทธิ์ของคุณไม่สามารถจัดการพนักงานได้")
-        
+    """เพิ่มพนักงานคนใหม่เข้าระบบ (Tenant Admin only)"""
     # Check duplicate email
     email_check = await db.execute(select(User).where(User.email == payload.email))
     if email_check.scalar_one_or_none():
@@ -182,7 +178,8 @@ async def create_employee(
         role=user_role,
         is_active=True,
         bar_number=payload.bar_number,
-        specializations=payload.specializations
+        specializations=payload.specializations,
+        tenant_id=tenant_id,  # 📍 Scoped to current tenant
     )
     
     db.add(new_emp)

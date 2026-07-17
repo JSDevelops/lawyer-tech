@@ -43,6 +43,11 @@ export default function LoginPage() {
 
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('user', JSON.stringify(data.user))
+
+      // Also store in cookie for Next.js middleware (server-side route protection)
+      const expiryDate = new Date(Date.now() + 8 * 60 * 60 * 1000) // 8 hours
+      document.cookie = `access_token=${data.access_token}; path=/; expires=${expiryDate.toUTCString()}; SameSite=Strict`
+
       toast.success(`ยินดีต้อนรับ, ${data.user.full_name} 🎉`)
 
       // Route based on role
@@ -51,6 +56,7 @@ export default function LoginPage() {
       } else {
         router.push('/dashboard')
       }
+
     } catch (err: any) {
       toast.error(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
