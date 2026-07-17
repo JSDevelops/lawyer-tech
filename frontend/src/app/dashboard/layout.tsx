@@ -19,7 +19,7 @@ const navItems = [
   { href: '/hr',        icon: UserCheck,       label: 'บริหารงานบุคคล', labelShort: 'HR', adminOnly: true },
   { href: '/billing',   icon: CreditCard,      label: 'บัญชีและการเงิน', labelShort: 'บัญชี', adminOnly: true },
   { href: '/ai',        icon: Bot,             label: 'AI Assistant', labelShort: 'AI' },
-  { href: '/superadmin', icon: ShieldCheck,   label: 'ระบบควบคุมกลาง', labelShort: 'Admin', superAdminOnly: true },
+  { href: '/dashboard/superadmin', icon: ShieldCheck,   label: 'ระบบควบคุมกลาง', labelShort: 'Admin', superAdminOnly: true },
 ]
 
 // Bottom nav items (5 most important for mobile)
@@ -88,7 +88,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     clerk: '📋 เสมียน',
   }
 
-  const currentPageLabel = navItems.find(n => pathname.startsWith(n.href))?.label || 'Lawyer Tech'
+  const currentPageLabel = navItems.find(n => n.href !== '/dashboard' ? pathname.startsWith(n.href) : pathname === n.href)?.label || 'Lawyer Tech'
 
   return (
     <div className="flex h-screen bg-[#0a0f1e] overflow-hidden">

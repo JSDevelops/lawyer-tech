@@ -47,7 +47,7 @@ export default function LoginPage() {
 
       // Route based on role
       if (data.user.role === 'superadmin') {
-        router.push('/superadmin')
+        router.push('/dashboard/superadmin')
       } else {
         router.push('/dashboard')
       }
