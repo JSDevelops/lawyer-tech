@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bot, Send, Loader2, Search, FileText, FilePlus2, Tag, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -20,6 +20,10 @@ export default function AiPage() {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [aiCredits, setAiCredits] = useState<{ remaining: number | null, total: number | null }>({
+    remaining: null,
+    total: null
+  })
 
   // Listen to search params for direct tab routing
   useState(() => {
@@ -31,6 +35,27 @@ export default function AiPage() {
       }
     }
   })
+
+  // Load initial AI credits
+  useEffect(() => {
+    const fetchUserAndCredits = async () => {
+      try {
+        const res = await fetch(`${API}/auth/me`, {
+          headers: getHeaders()
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setAiCredits({
+            remaining: data.ai_credits_remaining,
+            total: data.ai_credits_total
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load AI credits', err)
+      }
+    }
+    fetchUserAndCredits()
+  }, [])
 
   // Research
   const [researchQ, setResearchQ] = useState('')
@@ -65,9 +90,15 @@ export default function AiPage() {
         body: JSON.stringify({ message: userMsg })
       })
       const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'ไม่สามารถเชื่อมต่อ AI ได้')
+      }
       setMessages(prev => [...prev, { role: 'ai', text: data.response || 'ขออภัย ไม่สามารถตอบได้ในขณะนี้' }])
-    } catch {
-      toast.error('ไม่สามารถเชื่อมต่อ AI ได้')
+      if (data.ai_credits_remaining !== undefined) {
+        setAiCredits({ remaining: data.ai_credits_remaining, total: data.ai_credits_total })
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'ไม่สามารถเชื่อมต่อ AI ได้')
     } finally {
       setLoading(false)
     }
@@ -83,10 +114,17 @@ export default function AiPage() {
         body: JSON.stringify({ question: researchQ })
       })
       const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'เกิดข้อผิดพลาด')
+      }
       setResearchResult(data.research_result || '')
       setReferences(data.references || [])
-    } catch { toast.error('เกิดข้อผิดพลาด') }
-    finally { setLoading(false) }
+      if (data.ai_credits_remaining !== undefined) {
+        setAiCredits({ remaining: data.ai_credits_remaining, total: data.ai_credits_total })
+      }
+    } catch (err: any) { 
+      toast.error(err.message || 'เกิดข้อผิดพลาด') 
+    } finally { setLoading(false) }
   }
 
   const doSummarize = async () => {
@@ -98,9 +136,16 @@ export default function AiPage() {
         body: JSON.stringify({ text: summarizeText, output_format: 'detailed' })
       })
       const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'เกิดข้อผิดพลาด')
+      }
       setSummary(data.summary || '')
-    } catch { toast.error('เกิดข้อผิดพลาด') }
-    finally { setLoading(false) }
+      if (data.ai_credits_remaining !== undefined) {
+        setAiCredits({ remaining: data.ai_credits_remaining, total: data.ai_credits_total })
+      }
+    } catch (err: any) { 
+      toast.error(err.message || 'เกิดข้อผิดพลาด') 
+    } finally { setLoading(false) }
   }
 
   const doDraft = async () => {
@@ -112,9 +157,16 @@ export default function AiPage() {
         body: JSON.stringify({ template_type: draftType, client_name: draftClient, case_details: draftDetails })
       })
       const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'เกิดข้อผิดพลาด')
+      }
       setDraftResult(data.draft_content || '')
-    } catch { toast.error('เกิดข้อผิดพลาด') }
-    finally { setLoading(false) }
+      if (data.ai_credits_remaining !== undefined) {
+        setAiCredits({ remaining: data.ai_credits_remaining, total: data.ai_credits_total })
+      }
+    } catch (err: any) { 
+      toast.error(err.message || 'เกิดข้อผิดพลาด') 
+    } finally { setLoading(false) }
   }
 
   return (
@@ -130,7 +182,15 @@ export default function AiPage() {
           </h1>
           <p className="text-slate-500 text-xs mt-0.5 hidden sm:block">ขับเคลื่อนด้วย Gemini + LangChain RAG</p>
         </div>
-        <span className="badge badge-free text-[10px]">⚡ AI Online</span>
+        <div className="flex items-center gap-3">
+          {aiCredits.remaining !== null && (
+            <span className="text-xs text-slate-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full flex items-center gap-1.5 font-medium">
+              <span className={`w-2 h-2 rounded-full ${aiCredits.remaining > 10 ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              โควตา AI สำนักงาน: <strong className="text-white">{aiCredits.remaining}</strong> / {aiCredits.total}
+            </span>
+          )}
+          <span className="badge badge-free text-[10px]">⚡ AI Online</span>
+        </div>
       </div>
 
       {/* Tabs — scrollable on mobile */}

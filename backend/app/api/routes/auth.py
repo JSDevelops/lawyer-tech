@@ -103,6 +103,17 @@ async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depe
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        
+    ai_credits_remaining = None
+    ai_credits_total = None
+    if user.tenant_id:
+        from app.models.models import Tenant
+        tenant_res = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+        tenant = tenant_res.scalar_one_or_none()
+        if tenant:
+            ai_credits_remaining = tenant.ai_credits_remaining
+            ai_credits_total = tenant.ai_credits_total
+
     return {
         "id": str(user.id),
         "email": user.email,
@@ -111,4 +122,6 @@ async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depe
         "phone": user.phone,
         "avatar_url": user.avatar_url,
         "bar_number": user.bar_number,
+        "ai_credits_remaining": ai_credits_remaining,
+        "ai_credits_total": ai_credits_total,
     }

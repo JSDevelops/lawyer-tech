@@ -27,6 +27,7 @@ async def seed():
                     max_users=10,
                     storage_limit_gb=10.0,
                     enable_ai=True,
+                    ai_credit_limit=100,
                     enable_api_access=False
                 ),
                 SubscriptionPlan(
@@ -35,6 +36,7 @@ async def seed():
                     max_users=999,
                     storage_limit_gb=100.0,
                     enable_ai=True,
+                    ai_credit_limit=1000,
                     enable_api_access=True
                 )
             ]
@@ -60,6 +62,7 @@ async def seed():
                     max_users=10,
                     storage_limit_gb=10.0,
                     enable_ai=True,
+                    ai_credit_limit=100,
                     enable_api_access=False
                 )
                 session.add(standard_plan)
@@ -72,7 +75,10 @@ async def seed():
             tenant = Tenant(
                 name="สำนักงานกฎหมาย เลเยอร์ เทค (สาขาหลัก)",
                 subdomain="demo",
-                status="active"
+                status="active",
+                ai_credits_total=100,
+                ai_credits_used=0,
+                ai_credits_remaining=100
             )
             session.add(tenant)
             await session.flush()

@@ -48,7 +48,11 @@ class PlanCreateRequest(BaseModel):
     max_users: int = 3
     storage_limit_gb: float = 1.0
     enable_ai: bool = False
+    ai_credit_limit: int = 100
     enable_api_access: bool = False
+
+class TenantAddCreditsRequest(BaseModel):
+    amount: int
 
 # ==============================
 # Dependency for Auth Checks
@@ -89,6 +93,13 @@ async def get_superadmin_stats(db: AsyncSession = Depends(get_db), current_user=
     # 5. Total Subscription Plans
     result = await db.execute(select(func.count(SubscriptionPlan.id)))
     total_plans = result.scalar() or 0
+    
+    # 6. Total AI Credits Stats
+    result_used = await db.execute(select(func.sum(Tenant.ai_credits_used)))
+    total_ai_credits_used = int(result_used.scalar() or 0)
+    
+    result_rem = await db.execute(select(func.sum(Tenant.ai_credits_remaining)))
+    total_ai_credits_remaining = int(result_rem.scalar() or 0)
 
     return {
         "total_tenants": total_tenants,
@@ -96,6 +107,8 @@ async def get_superadmin_stats(db: AsyncSession = Depends(get_db), current_user=
         "total_users": total_users,
         "total_cases": total_cases,
         "total_plans": total_plans,
+        "total_ai_credits_used": total_ai_credits_used,
+        "total_ai_credits_remaining": total_ai_credits_remaining,
         "database_connections": 12, # mock pool connection
         "revenue_thb": 49000.0 # mock monthly subscription revenue
     }
@@ -147,7 +160,10 @@ async def get_tenants(db: AsyncSession = Depends(get_db), current_user=Depends(r
             "plan_price": plan_price,
             "plan_price_yearly": plan_price_yearly,
             "billing_cycle": billing_cycle,
-            "end_date": end_date
+            "end_date": end_date,
+            "ai_credits_total": tenant.ai_credits_total,
+            "ai_credits_used": tenant.ai_credits_used,
+            "ai_credits_remaining": tenant.ai_credits_remaining
         })
         
     return tenant_list
@@ -259,6 +275,37 @@ async def update_tenant_status(tenant_id: str, req: TenantStatusUpdateRequest, d
     await log_action(db, "UPDATE_TENANT_STATUS", f"Changed tenant '{tenant.name}' status to '{req.status}'", current_user["email"])
     return {"status": "success", "message": f"เปลี่ยนสถานะ Tenant เป็น {req.status} สำเร็จ"}
 
+@router.post("/tenants/{tenant_id}/add-credits")
+async def add_tenant_credits(tenant_id: str, req: TenantAddCreditsRequest, db: AsyncSession = Depends(get_db), current_user=Depends(require_admin)):
+    """เติมเครดิต AI ให้สำนักงานกฎหมาย (Tenant)"""
+    try:
+        t_uuid = uuid.UUID(tenant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="UUID ไม่ถูกต้อง")
+
+    result = await db.execute(select(Tenant).where(Tenant.id == t_uuid))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="ไม่พบสำนักงานกฎหมาย")
+
+    if tenant.ai_credits_total is None:
+        tenant.ai_credits_total = 100
+    if tenant.ai_credits_used is None:
+        tenant.ai_credits_used = 0
+        
+    tenant.ai_credits_total += req.amount
+    tenant.ai_credits_remaining = max(0, tenant.ai_credits_total - tenant.ai_credits_used)
+
+    await db.flush()
+    await db.commit()
+    await log_action(db, "TOPUP_AI_CREDITS", f"Added {req.amount} AI credits to tenant '{tenant.name}'. Total: {tenant.ai_credits_total}", current_user["email"])
+    return {
+        "status": "success",
+        "message": f"เติมเครดิต {req.amount} เครดิต สำเร็จ",
+        "ai_credits_total": tenant.ai_credits_total,
+        "ai_credits_remaining": tenant.ai_credits_remaining
+    }
+
 # ==============================
 # Plan Endpoints (CRUD)
 # ==============================
@@ -277,6 +324,7 @@ async def get_plans(db: AsyncSession = Depends(get_db), current_user=Depends(req
             "max_users": p.max_users,
             "storage_limit_gb": p.storage_limit_gb,
             "enable_ai": p.enable_ai,
+            "ai_credit_limit": p.ai_credit_limit,
             "enable_api_access": p.enable_api_access,
             "created_at": p.created_at
         } for p in plans
@@ -292,11 +340,12 @@ async def create_plan(req: PlanCreateRequest, db: AsyncSession = Depends(get_db)
         max_users=req.max_users,
         storage_limit_gb=req.storage_limit_gb,
         enable_ai=req.enable_ai,
+        ai_credit_limit=req.ai_credit_limit,
         enable_api_access=req.enable_api_access
     )
     db.add(plan)
     await db.flush()
-    await log_action(db, "CREATE_PLAN", f"Created subscription plan '{plan.name}' for {plan.price} THB/mo / {plan.price_yearly} THB/yr", current_user["email"])
+    await log_action(db, "CREATE_PLAN", f"Created subscription plan '{plan.name}' with {plan.ai_credit_limit} AI credits for {plan.price} THB/mo", current_user["email"])
     return {"status": "success", "plan_id": str(plan.id), "message": f"สร้างแพ็กเกจ {plan.name} สำเร็จ"}
 
 @router.put("/plans/{plan_id}")
@@ -318,6 +367,7 @@ async def update_plan(plan_id: str, req: PlanCreateRequest, db: AsyncSession = D
     plan.max_users = req.max_users
     plan.storage_limit_gb = req.storage_limit_gb
     plan.enable_ai = req.enable_ai
+    plan.ai_credit_limit = req.ai_credit_limit
     plan.enable_api_access = req.enable_api_access
     
     await log_action(db, "UPDATE_PLAN", f"Updated subscription plan '{plan.name}' settings", current_user["email"])

@@ -43,6 +43,54 @@ class ChatRequest(BaseModel):
     conversation_history: Optional[list] = []
 
 
+async def check_and_deduct_ai_credits(db: AsyncSession, user_id: str):
+    """ตรวจสอบสิทธิ์โควตา AI ของสำนักงานกฎหมาย และหักลบทีละ 1 เครดิตเมื่อเรียกใช้งานสำเร็จ"""
+    import uuid as _uuid
+    from app.models.models import User, Tenant
+    
+    try:
+        user_uuid = _uuid.UUID(str(user_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=401, detail="ไม่พบข้อมูลผู้ใช้")
+        
+    user_res = await db.execute(select(User).where(User.id == user_uuid))
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="ไม่พบข้อมูลผู้ใช้")
+        
+    if not user.tenant_id:
+        return None, None
+        
+    tenant_res = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = tenant_res.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="ไม่พบข้อมูลสำนักงานกฎหมาย (Tenant)")
+        
+    # Initialize fields if None
+    if tenant.ai_credits_total is None:
+        tenant.ai_credits_total = 100
+    if tenant.ai_credits_used is None:
+        tenant.ai_credits_used = 0
+    if tenant.ai_credits_remaining is None:
+        tenant.ai_credits_remaining = tenant.ai_credits_total
+        
+    # Check remaining credits
+    if tenant.ai_credits_remaining <= 0:
+        raise HTTPException(
+            status_code=403,
+            detail="เครดิต AI ของสำนักงานกฎหมายท่านหมดลงแล้ว กรุณาติดต่อผู้ดูแลระบบเพื่อเติมเครดิต"
+        )
+        
+    # Deduct credit
+    tenant.ai_credits_used += 1
+    tenant.ai_credits_remaining = max(0, tenant.ai_credits_total - tenant.ai_credits_used)
+    
+    await db.flush()
+    await db.commit()
+    
+    return tenant.ai_credits_remaining, tenant.ai_credits_total
+
+
 # ==============================
 # API Endpoints
 # ==============================
@@ -55,6 +103,9 @@ async def ai_chat(
 ):
     """🤖 AI Chat Assistant สำหรับทนายและลูกความ"""
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         llm = await get_llm(db)
         
         system_prompt = """คุณคือ AI ผู้ช่วยทางกฎหมายของ Lawyer Tech ERP
@@ -79,8 +130,12 @@ async def ai_chat(
         return {
             "status": "success",
             "response": response,
-            "model": model_name
+            "model": model_name,
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
 
@@ -93,6 +148,9 @@ async def smart_legal_research(
 ):
     """🔎 Smart Legal Research — ค้นหากฎหมายและฎีกาที่เกี่ยวข้องด้วย RAG"""
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         from app.models.models import LegalReference
         from app.core.ai import get_embedding
         
@@ -131,7 +189,7 @@ async def smart_legal_research(
 หมวดคดี: {category}
 
 กรุณาให้คำแนะนำทางกฎหมายอย่างละเอียดตามหัวข้อดังนี้:
-1. **บทวิเคราะห์ตามข้อกฎหมายและแนวฎีกาที่เกี่ยวข้อง** — นำข้อมูลจาก Context ด้านบนมาประยุกต์และอ้างอิงอย่างชัดเจน
+1. **บทวิเคราะห์ตามข้อกฎหมายและแนวฎีกาที่เกี่ยวข้อง** — นำข้อมูลจาก Context ด้านบนมาประยุก้และอ้างอิงอย่างชัดเจน
 2. **ประเมินความเป็นไปได้ทางคดีความ** — โอกาสชนะ/แพ้คดี หรือความเสี่ยงต่างๆ
 3. **แนวทางการดำเนินการต่อสำหรับทนายความ** — ขั้นตอนและคำแนะนำที่เป็นรูปธรรม
 4. **ข้อควรระวังสำคัญ**
@@ -152,6 +210,8 @@ async def smart_legal_research(
             "research_result": result,
             "question": request.question,
             "category": request.category,
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total,
             "references": [
                 {
                     "dika_number": ref.dika_number,
@@ -164,6 +224,8 @@ async def smart_legal_research(
                 } for ref in references
             ]
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -345,6 +407,9 @@ async def summarize_case(
 ):
     """📝 Case Summarization — สรุปข้อเท็จจริงคดีเป็น 1 หน้า"""
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         llm = await get_llm(db)
         
         format_instructions = {
@@ -374,8 +439,12 @@ async def summarize_case(
             "summary": result,
             "format": request.output_format,
             "original_length": len(request.text),
-            "summary_length": len(result)
+            "summary_length": len(result),
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -391,6 +460,9 @@ async def summarize_pdf(
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF")
     
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         contents = await file.read()
         pdf_reader = pypdf.PdfReader(io.BytesIO(contents))
         
@@ -428,8 +500,12 @@ async def summarize_pdf(
             "filename": file.filename,
             "pages": len(pdf_reader.pages),
             "summary": result,
-            "extracted_chars": len(text)
+            "extracted_chars": len(text),
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -442,6 +518,9 @@ async def draft_document(
 ):
     """📃 Document Drafting — ร่างเอกสารทางกฎหมายด้วย AI"""
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         llm = await get_llm(db)
         
         templates = {
@@ -478,8 +557,12 @@ async def draft_document(
             "document_type": doc_type,
             "client_name": request.client_name,
             "draft_content": result,
-            "disclaimer": "เอกสารนี้เป็นเพียงร่างเบื้องต้น ต้องผ่านการตรวจสอบจากทนายความก่อนใช้งาน"
+            "disclaimer": "เอกสารนี้เป็นเพียงร่างเบื้องต้น ต้องผ่านการตรวจสอบจากทนายความก่อนใช้งาน",
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -492,6 +575,9 @@ async def categorize_case(
 ):
     """🏷️ จัดหมวดหมู่คดีอัตโนมัติด้วย AI"""
     try:
+        # Check and deduct credits
+        credits_remaining, credits_total = await check_and_deduct_ai_credits(db, current_user["sub"])
+        
         model = await get_genai_model(db)
         
         prompt = f"""จากข้อความต่อไปนี้ จัดหมวดหมู่คดีความให้ตรงที่สุด โดยเลือกจาก:
@@ -516,7 +602,11 @@ async def categorize_case(
         return {
             "status": "success",
             "category": category,
-            "input": request.message
+            "input": request.message,
+            "ai_credits_remaining": credits_remaining,
+            "ai_credits_total": credits_total
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

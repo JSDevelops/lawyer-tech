@@ -462,6 +462,12 @@ class Tenant(Base):
     name = Column(String(255), nullable=False)
     subdomain = Column(String(100), unique=True, index=True, nullable=True)
     status = Column(String(50), default="active") # active, suspended, trial_expired
+    
+    # AI Credits fields
+    ai_credits_total = Column(Integer, default=100)
+    ai_credits_used = Column(Integer, default=0)
+    ai_credits_remaining = Column(Integer, default=100)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -477,6 +483,7 @@ class SubscriptionPlan(Base):
     max_users = Column(Integer, default=3)
     storage_limit_gb = Column(Float, default=1.0)
     enable_ai = Column(Boolean, default=False)
+    ai_credit_limit = Column(Integer, default=100) # AI queries limit per cycle
     enable_api_access = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

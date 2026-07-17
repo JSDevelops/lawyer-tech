@@ -16,10 +16,14 @@ export default function SuperAdminPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'stats' | 'ai' | 'smtp' | 'billing' | 'maintenance'>('stats')
+  const [activeTab, setActiveTab] = useState<'stats' | 'tenants' | 'ai' | 'smtp' | 'billing' | 'maintenance'>('stats')
 
   // Auth/Role
   const [currentUser, setCurrentUser] = useState<any>(null)
+
+  // Tenants list
+  const [tenants, setTenants] = useState<any[]>([])
+  const [topupAmount, setTopupAmount] = useState<{ [key: string]: number }>({})
 
   // Stats State
   const [stats, setStats] = useState({
@@ -110,11 +114,47 @@ export default function SuperAdminPage() {
       } else {
         toast.error('โหลดข้อมูลการตั้งค่าระบบส่วนกลางล้มเหลว')
       }
+
+      // 3. Fetch Tenants
+      const tenantsRes = await fetch(`${API}/superadmin/tenants`, { headers })
+      if (tenantsRes.ok) {
+        const tenantsData = await tenantsRes.json()
+        setTenants(tenantsData)
+      }
     } catch (err) {
       console.error(err)
       toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อกับ API หลังบ้าน')
     } finally {
       setPageLoading(false)
+    }
+  }
+
+  const handleTopupCredits = async (tenantId: string) => {
+    const amount = topupAmount[tenantId]
+    if (!amount || amount <= 0) {
+      toast.error('กรุณาระบุจำนวนเครดิตที่ต้องการเติม')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch(`${API}/superadmin/tenants/${tenantId}/add-credits`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ amount })
+      })
+
+      if (res.ok) {
+        toast.success(`เติมเครดิต ${amount} AI Credits สำเร็จ! 🎉`)
+        setTopupAmount({ ...topupAmount, [tenantId]: 0 })
+        fetchSuperAdminData()
+      } else {
+        const errJson = await res.json()
+        toast.error(errJson.detail || 'เติมเครดิตล้มเหลว')
+      }
+    } catch (err) {
+      toast.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -189,6 +229,16 @@ export default function SuperAdminPage() {
         >
           <Activity className="w-4 h-4" />
           สถิติภาพรวมระบบ
+        </button>
+        <button
+          onClick={() => setActiveTab('tenants')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px
+            ${activeTab === 'tenants'
+              ? 'border-rose-500 text-rose-400'
+              : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+        >
+          <Users className="w-4 h-4" />
+          สำนักงาน & เครดิต AI
         </button>
         <button
           onClick={() => setActiveTab('ai')}
@@ -296,6 +346,124 @@ export default function SuperAdminPage() {
                   {settingsData.maintenance_mode ? 'เปิดการใช้งานอยู่' : 'ปิดอยู่ (ใช้งานปกติ)'}
                 </span>
               </div>
+              <div className="flex justify-between items-center py-3 border-b border-white/5">
+                <span className="text-sm text-slate-400">ปริมาณการใช้งาน AI เครดิต (สะสมทั้งหมด)</span>
+                <span className="font-mono text-sm text-rose-400">ใช้ไป {(stats as any).total_ai_credits_used || 0} เครดิต</span>
+              </div>
+              <div className="flex justify-between items-center py-3 border-b border-white/5">
+                <span className="text-sm text-slate-400">เครดิต AI คงเหลือ (รวมทุกสำนักงาน)</span>
+                <span className="font-mono text-sm text-emerald-400">คงเหลือ {(stats as any).total_ai_credits_remaining || 0} เครดิต</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: TENANTS & AI CREDITS */}
+      {activeTab === 'tenants' && (
+        <div className="space-y-6">
+          <div className="card p-6 space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-white/5">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-rose-400" />
+                รายชื่อสำนักงานกฎหมาย & โควตาการใช้งาน AI (Tenants & AI Credits)
+              </h3>
+              <span className="text-xs text-slate-500 bg-white/5 px-3 py-1 rounded-full">
+                ทั้งหมด {tenants.length} สำนักงาน
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead>
+                  <tr className="border-b border-white/5 text-slate-400 text-xs uppercase font-bold tracking-wider">
+                    <th className="py-3 px-4">สำนักงาน (Subdomain)</th>
+                    <th className="py-3 px-4">สถานะการเช่าใช้</th>
+                    <th className="py-3 px-4">ทนาย / คดี</th>
+                    <th className="py-3 px-4">แพ็กเกจปัจจุบัน</th>
+                    <th className="py-3 px-4 w-[250px]">เครดิต AI คงเหลือ (ใช้ไป / ทั้งหมด)</th>
+                    <th className="py-3 px-4 text-right">เติมเครดิต AI (จำนวน)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {tenants.map(tenant => {
+                    const total = tenant.ai_credits_total || 100
+                    const used = tenant.ai_credits_used || 0
+                    const rem = tenant.ai_credits_remaining || 0
+                    const pct = Math.min(100, Math.round((used / total) * 100))
+                    
+                    return (
+                      <tr key={tenant.id} className="hover:bg-white/2 transition">
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-white">{tenant.name}</p>
+                          <p className="text-xs text-rose-400 font-mono mt-0.5">{tenant.subdomain || 'N/A'}.lawyertech.co.th</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold
+                            ${tenant.status === 'active' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                            {tenant.status === 'active' ? 'เปิดใช้งาน' : 'ระงับการใช้'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="text-white text-xs">{tenant.user_count} คน / {tenant.case_count} คดี</p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="text-white text-xs font-medium">{tenant.plan_name}</p>
+                          <p className="text-slate-500 text-[10px] mt-0.5">
+                            {tenant.billing_cycle === 'yearly' ? 'รายปี' : 'รายเดือน'} 
+                            {tenant.end_date ? ` (หมดอายุ ${new Date(tenant.end_date).toLocaleDateString('th-TH')})` : ''}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-bold text-rose-400">{rem} เครดิต</span>
+                              <span className="text-slate-500">ใช้ไป {used}/{total}</span>
+                            </div>
+                            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-300
+                                  ${pct > 90 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <input
+                              type="number"
+                              className="w-20 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-center text-xs text-white focus:outline-none focus:border-rose-500"
+                              placeholder="จำนวน"
+                              value={topupAmount[tenant.id] || ''}
+                              onChange={e => setTopupAmount({ 
+                                ...topupAmount, 
+                                [tenant.id]: parseInt(e.target.value) || 0 
+                              })}
+                            />
+                            <button
+                              onClick={() => handleTopupCredits(tenant.id)}
+                              disabled={loading || !(topupAmount[tenant.id] > 0)}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shrink-0"
+                            >
+                              เติมเครดิต
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {tenants.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-500 text-sm">
+                        ไม่พบข้อมูลสำนักงานกฎหมายในระบบ
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
