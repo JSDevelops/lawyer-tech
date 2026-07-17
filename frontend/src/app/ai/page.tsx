@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bot, Send, Loader2, Search, FileText, FilePlus2, Tag, Upload } from 'lucide-react'
+import { Bot, Send, Loader2, Search, FileText, FilePlus2, Tag, Upload, AlertTriangle, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
@@ -91,14 +91,17 @@ export default function AiPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.detail || 'ไม่สามารถเชื่อมต่อ AI ได้')
+        // Show error as in-chat bubble (not raw toast)
+        const errorText = data.detail || 'ไม่สามารถเชื่อมต่อ AI ได้'
+        setMessages(prev => [...prev, { role: 'error', text: errorText, statusCode: res.status }])
+        return
       }
       setMessages(prev => [...prev, { role: 'ai', text: data.response || 'ขออภัย ไม่สามารถตอบได้ในขณะนี้' }])
       if (data.ai_credits_remaining !== undefined) {
         setAiCredits({ remaining: data.ai_credits_remaining, total: data.ai_credits_total })
       }
     } catch (err: any) {
-      toast.error(err.message || 'ไม่สามารถเชื่อมต่อ AI ได้')
+      setMessages(prev => [...prev, { role: 'error', text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', statusCode: 0 }])
     } finally {
       setLoading(false)
     }
@@ -224,11 +227,40 @@ export default function AiPage() {
                     <Bot className="w-3.5 h-3.5 text-amber-400" />
                   </div>
                 )}
-                <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
-                  <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.text}</p>
-                </div>
+                {msg.role === 'error' && (
+                  <div className="w-7 h-7 rounded-full bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0 mr-2 mt-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  </div>
+                )}
+
+                {/* Error Card */}
+                {msg.role === 'error' ? (
+                  <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-red-500/10 border border-red-500/25 p-3.5 space-y-2">
+                    <p className="text-red-300 text-xs font-semibold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {(msg as any).statusCode === 503 ? 'API Quota หมด' :
+                       (msg as any).statusCode === 429 ? 'Rate Limit' :
+                       (msg as any).statusCode === 403 ? 'ไม่มีสิทธิ์ใช้งาน' : 'เกิดข้อผิดพลาด'}
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm text-red-200 leading-relaxed">{msg.text}</p>
+                    {(msg as any).statusCode === 503 && (
+                      <a
+                        href="/dashboard/superadmin"
+                        className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 underline transition-colors mt-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        ไปที่ระบบควบคุมกลาง → AI Studio
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
+                    <p className="whitespace-pre-wrap leading-relaxed text-sm">{msg.text}</p>
+                  </div>
+                )}
               </div>
             ))}
+
             {loading && (
               <div className="flex justify-start items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">

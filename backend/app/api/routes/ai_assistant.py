@@ -14,6 +14,32 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.ai import get_llm, get_genai_model
 
+
+def _handle_ai_error(e: Exception) -> HTTPException:
+    """
+    แปลง Gemini / OpenAI error เป็น HTTPException ที่เป็นมิตรกับผู้ใช้
+    - 429 / ResourceExhausted  → 503 + ข้อความไทยที่ชัดเจน
+    - อื่นๆ                   → 500 + ข้อความทั่วไป
+    """
+    err_str = str(e)
+    # Google Gemini free-tier quota errors
+    if "429" in err_str or "ResourceExhausted" in err_str or "quota" in err_str.lower():
+        return HTTPException(
+            status_code=503,
+            detail=(
+                "⚠️ API Key Gemini AI ถึงขีดจำกัดควอต้ารายเดือน (Free Tier Quota Exceeded) \n"
+                "กรุณาติดต่อ Super Admin เพื่ออัปเดต API Key หรืออัปเกรดเป็นแผน Paid \n"
+                "(สามารถตั้งค่า Key ใหม่ได้ที่: ระบบควบคุมกลาง → AI Studio)"
+            )
+        )
+    # Rate limit by requests/minute (different from quota)
+    if "rate" in err_str.lower() and "limit" in err_str.lower():
+        return HTTPException(
+            status_code=429,
+            detail="⏳ AI ถูกใช้งานหนักเกินไป กรุณารอสักครู่แล้วลองใหม่"
+        )
+    return HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในระบบ AI กรุณาลองใหม่อีกครั้ง")
+
 router = APIRouter()
 
 # ==============================
@@ -137,7 +163,7 @@ async def ai_chat(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Error: {str(e)}")
+        raise _handle_ai_error(e)
 
 
 @router.post("/legal-research")
@@ -227,7 +253,8 @@ async def smart_legal_research(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _handle_ai_error(e)
+
 
 
 @router.post("/seed-references")
