@@ -113,6 +113,7 @@ class Client(Base):
     __tablename__ = "clients"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     client_code = Column(String(20), unique=True, index=True)  # รหัสลูกค้า
     full_name = Column(String(255), nullable=False)
     id_card = Column(String(13))  # เลขบัตรประชาชน
@@ -150,7 +151,7 @@ class Case(Base):
     __tablename__ = "cases"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     case_number = Column(String(30), unique=True, index=True)  # เลขคดี
     title = Column(String(500), nullable=False)
     description = Column(Text)
@@ -212,6 +213,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     file_name = Column(String(500), nullable=False)
     original_name = Column(String(500))
     file_type = Column(Enum(DocumentType), default=DocumentType.OTHER)
@@ -243,6 +245,7 @@ class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     title = Column(String(500), nullable=False)
     description = Column(Text)
     event_type = Column(Enum(EventType), nullable=False)
@@ -271,6 +274,7 @@ class TimeEntry(Base):
     __tablename__ = "time_entries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     description = Column(String(500), nullable=False)
     hours = Column(Float, nullable=False)
     hourly_rate = Column(Float, default=1000.0)  # อัตราต่อชั่วโมง (บาท)
@@ -292,6 +296,7 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     invoice_number = Column(String(30), unique=True, index=True)
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT)
     
@@ -342,6 +347,7 @@ class EmployeeAttendance(Base):
     __tablename__ = "employee_attendance"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     date = Column(Date, nullable=False)
     check_in = Column(DateTime)
@@ -357,6 +363,7 @@ class EmployeeLeave(Base):
     __tablename__ = "employee_leaves"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     leave_type = Column(String(50), nullable=False)  # sick, personal, vacation
     start_date = Column(Date, nullable=False)
@@ -375,6 +382,7 @@ class EmployeeSalary(Base):
     __tablename__ = "employee_salaries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     base_salary = Column(Float, default=0.0)
     allowance = Column(Float, default=0.0)
@@ -416,6 +424,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, index=True)
     description = Column(String(500), nullable=False)
     category = Column(Enum(ExpenseCategory), nullable=False, default=ExpenseCategory.OTHER)
     amount = Column(Float, nullable=False)
@@ -438,6 +447,7 @@ class FirmSetting(Base):
     __tablename__ = "firm_settings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True, unique=True, index=True)
     firm_name = Column(String(255), default="สำนักงานกฎหมาย เลเยอร์ เทค")
     address = Column(Text, default="เลขที่ 123/45 ถนนราชดำเนิน แขวงพระนคร เขตพระนคร กรุงเทพมหานคร 10200")
     phone = Column(String(50), default="02-123-4567")

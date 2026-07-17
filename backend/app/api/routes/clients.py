@@ -4,11 +4,12 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
 import uuid
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import Client
 
 router = APIRouter()
@@ -45,10 +46,12 @@ async def list_clients(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """รายชื่อลูกความทั้งหมด"""
-    query = select(Client).where(Client.is_active == True)
+    tenant_filters = build_tenant_filter(Client, tenant_id)
+    query = select(Client).where(Client.is_active == True, *tenant_filters)
     
     if search:
         query = query.where(
@@ -100,11 +103,13 @@ async def list_clients(
 async def create_client(
     request: ClientCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """เพิ่มลูกความใหม่"""
     client = Client(
         client_code=generate_client_code(),
+        tenant_id=tenant_id,
         **request.model_dump()
     )
     db.add(client)
@@ -116,14 +121,16 @@ async def create_client(
 async def get_client(
     client_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """ดูรายละเอียดลูกความ"""
     try:
         client_uuid = uuid.UUID(client_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
-    result = await db.execute(select(Client).where(Client.id == client_uuid))
+    tenant_filters = build_tenant_filter(Client, tenant_id)
+    result = await db.execute(select(Client).where(Client.id == client_uuid, *tenant_filters))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
@@ -151,14 +158,16 @@ async def update_client(
     client_id: str,
     request: ClientUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """แก้ไขข้อมูลลูกความ"""
     try:
         client_uuid = uuid.UUID(client_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
-    result = await db.execute(select(Client).where(Client.id == client_uuid))
+    tenant_filters = build_tenant_filter(Client, tenant_id)
+    result = await db.execute(select(Client).where(Client.id == client_uuid, *tenant_filters))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
@@ -184,14 +193,16 @@ async def update_client_kyc(
     client_id: str,
     kyc_status: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """อัปเดตสถานะ KYC"""
     try:
         client_uuid = uuid.UUID(client_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
-    result = await db.execute(select(Client).where(Client.id == client_uuid))
+    tenant_filters = build_tenant_filter(Client, tenant_id)
+    result = await db.execute(select(Client).where(Client.id == client_uuid, *tenant_filters))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
@@ -203,14 +214,16 @@ async def update_client_kyc(
 async def delete_client(
     client_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """ลบลูกความ (Soft Delete)"""
     try:
         client_uuid = uuid.UUID(client_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")
-    result = await db.execute(select(Client).where(Client.id == client_uuid))
+    tenant_filters = build_tenant_filter(Client, tenant_id)
+    result = await db.execute(select(Client).where(Client.id == client_uuid, *tenant_filters))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="ไม่พบลูกความ")

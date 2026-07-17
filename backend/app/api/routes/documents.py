@@ -15,6 +15,7 @@ from langchain.schema.output_parser import StrOutputParser
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import Document, DocumentType, Client, Case
 from app.core.config import settings
 from app.core.ai import get_llm
@@ -84,10 +85,12 @@ async def list_documents(
     client_id: Optional[str] = Query(None),
     case_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """รายการเอกสารทั้งหมดพร้อมตัวกรอง"""
-    query = select(Document)
+    tenant_filters = build_tenant_filter(Document, tenant_id)
+    query = select(Document).where(*tenant_filters)
     
     if search:
         query = query.where(
@@ -142,7 +145,8 @@ async def upload_document(
     client_id: Optional[str] = Form(None),
     case_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """อัปโหลดเอกสารใหม่และบันทึกลงระบบ"""
     # 1. Map type
@@ -206,7 +210,8 @@ async def upload_document(
         extracted_text=extracted_text,
         client_id=cl_id,
         case_id=cs_id,
-        uploaded_by_id=user_uuid
+        uploaded_by_id=user_uuid,
+        tenant_id=tenant_id,
     )
     
     db.add(new_doc)

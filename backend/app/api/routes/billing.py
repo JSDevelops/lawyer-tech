@@ -10,6 +10,7 @@ from sqlalchemy import select, func, or_, and_
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import (
     User, Client, Case, TimeEntry, Invoice, InvoiceItem,
     Expense, ExpenseCategory, InvoiceStatus, UserRole
@@ -148,10 +149,12 @@ async def list_time_entries(
     case_id: Optional[str] = Query(None),
     uninvoiced: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """รายการชั่วโมงทำงานคิดเงิน (Time entries)"""
-    query = select(TimeEntry)
+    tenant_filters = build_tenant_filter(TimeEntry, tenant_id)
+    query = select(TimeEntry).where(*tenant_filters)
     if case_id:
         query = query.where(TimeEntry.case_id == uuid.UUID(case_id))
     if uninvoiced is True:
@@ -183,7 +186,8 @@ async def list_time_entries(
 async def create_time_entry(
     payload: TimeEntryCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """บันทึกชั่วโมงทำงานเพื่อนำไปออกบิลคิดเงิน"""
     user_id_str = current_user.get("sub")
@@ -204,7 +208,8 @@ async def create_time_entry(
         date=payload.date,
         is_billable=payload.is_billable,
         case_id=case_uuid,
-        user_id=user_uuid
+        user_id=user_uuid,
+        tenant_id=tenant_id,
     )
     
     db.add(new_entry)
@@ -230,10 +235,12 @@ async def list_expenses(
     category: Optional[str] = Query(None),
     case_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """รายการรายจ่ายสำนักงาน"""
-    query = select(Expense)
+    tenant_filters = build_tenant_filter(Expense, tenant_id)
+    query = select(Expense).where(*tenant_filters)
     if category:
         query = query.where(Expense.category == category)
     if case_id:
@@ -264,7 +271,8 @@ async def list_expenses(
 async def create_expense(
     payload: ExpenseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """บันทึกค่าใช้จ่ายสำนักงาน"""
     user_uuid = uuid.UUID(current_user.get("sub"))
@@ -290,7 +298,8 @@ async def create_expense(
         case_id=case_uuid,
         logged_by=user_uuid,
         receipt_url=payload.receipt_url,
-        notes=payload.notes
+        notes=payload.notes,
+        tenant_id=tenant_id,
     )
     
     db.add(new_expense)
@@ -322,10 +331,12 @@ async def list_invoices(
     client_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """รายการใบแจ้งหนี้ทั้งหมด"""
-    query = select(Invoice)
+    tenant_filters = build_tenant_filter(Invoice, tenant_id)
+    query = select(Invoice).where(*tenant_filters)
     if client_id:
         query = query.where(Invoice.client_id == uuid.UUID(client_id))
     if status:
@@ -387,7 +398,8 @@ async def get_invoice(
 async def create_invoice(
     payload: InvoiceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """สร้างใบแจ้งหนี้ฉบับใหม่พร้อมรายการย่อย"""
     client_uuid = uuid.UUID(payload.client_id)
@@ -440,7 +452,8 @@ async def create_invoice(
         notes=payload.notes,
         client_id=client_uuid,
         case_id=case_uuid,
-        items=created_items
+        items=created_items,
+        tenant_id=tenant_id,
     )
     db.add(new_inv)
     await db.flush()  # Generate UUIDs

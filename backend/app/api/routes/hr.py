@@ -10,6 +10,7 @@ from sqlalchemy import select, func, or_, and_
 
 from app.core.database import get_db
 from app.core.security import get_current_user, hash_password
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import User, UserRole, EmployeeAttendance, EmployeeLeave, EmployeeSalary
 
 router = APIRouter()
@@ -242,10 +243,12 @@ async def list_attendance(
     user_id: Optional[str] = Query(None),
     date_filter: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """ประวัติการลงเวลาเข้า-ออกงาน"""
-    query = select(EmployeeAttendance)
+    tenant_filters = build_tenant_filter(EmployeeAttendance, tenant_id)
+    query = select(EmployeeAttendance).where(*tenant_filters)
     
     if user_id:
         query = query.where(EmployeeAttendance.user_id == uuid.UUID(user_id))
@@ -270,7 +273,8 @@ async def list_attendance(
 @router.post("/attendance/check-in")
 async def check_in_attendance(
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """ลงบันทึกเวลาเช็คอินเข้าทำงานประจำวัน"""
     user_id_str = current_user.get("sub")
@@ -301,7 +305,8 @@ async def check_in_attendance(
         user_id=user_uuid,
         date=today,
         check_in=now,
-        status=check_in_status
+        status=check_in_status,
+        tenant_id=tenant_id,
     )
     
     db.add(new_att)
@@ -362,17 +367,19 @@ async def check_out_attendance(
 @router.get("/leaves")
 async def list_leaves(
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """คำขอลาหยุดทั้งหมด (แอดมินดูได้หมด พนักงานดูเฉพาะของตนเอง)"""
     user_id_str = current_user.get("sub")
     user_uuid = uuid.UUID(user_id_str)
     role_str = current_user.get("role")
-    
+    tenant_filters = build_tenant_filter(EmployeeLeave, tenant_id)
+
     if role_str in ["admin", "partner"]:
-        query = select(EmployeeLeave)
+        query = select(EmployeeLeave).where(*tenant_filters)
     else:
-        query = select(EmployeeLeave).where(EmployeeLeave.user_id == user_uuid)
+        query = select(EmployeeLeave).where(EmployeeLeave.user_id == user_uuid, *tenant_filters)
         
     query = query.order_by(EmployeeLeave.created_at.desc())
     result = await db.execute(query)
@@ -399,7 +406,8 @@ async def list_leaves(
 async def request_leave(
     payload: LeaveCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """ส่งคำขอลาหยุดพักร้อน ลาป่วย หรือลากิจ"""
     user_id_str = current_user.get("sub")
@@ -411,7 +419,8 @@ async def request_leave(
         start_date=payload.start_date,
         end_date=payload.end_date,
         reason=payload.reason,
-        status="pending"
+        status="pending",
+        tenant_id=tenant_id,
     )
     
     db.add(new_leave)
@@ -476,17 +485,19 @@ async def approve_leave(
 @router.get("/payroll")
 async def list_payroll(
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """รายการใบจ่ายเงินเดือน (แอดมินดูทั้งหมด พนักงานดูเฉพาะของตนเอง)"""
     user_id_str = current_user.get("sub")
     user_uuid = uuid.UUID(user_id_str)
     role_str = current_user.get("role")
-    
+    tenant_filters = build_tenant_filter(EmployeeSalary, tenant_id)
+
     if role_str in ["admin", "partner"]:
-        query = select(EmployeeSalary)
+        query = select(EmployeeSalary).where(*tenant_filters)
     else:
-        query = select(EmployeeSalary).where(EmployeeSalary.user_id == user_uuid)
+        query = select(EmployeeSalary).where(EmployeeSalary.user_id == user_uuid, *tenant_filters)
         
     query = query.order_by(EmployeeSalary.pay_period.desc(), EmployeeSalary.created_at.desc())
     result = await db.execute(query)
@@ -508,7 +519,8 @@ async def list_payroll(
 async def generate_payroll(
     payload: PayrollCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    tenant_id = Depends(get_tenant_id),
 ):
     """ทำเรื่องเบิกจ่ายเงินเดือนสำหรับพนักงาน"""
     role_str = current_user.get("role")
@@ -535,7 +547,8 @@ async def generate_payroll(
         allowance=payload.allowance,
         deductions=payload.deductions,
         pay_period=payload.pay_period,
-        payment_status="pending"
+        payment_status="pending",
+        tenant_id=tenant_id,
     )
     
     db.add(new_payroll)

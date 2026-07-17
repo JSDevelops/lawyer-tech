@@ -11,6 +11,7 @@ import uuid
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import CalendarEvent, Case, Client, EventType
 
 router = APIRouter()
@@ -81,10 +82,12 @@ async def list_events(
     search: Optional[str] = Query(None),
     upcoming: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """รายการนัดหมายทั้งหมด - กรองตามเดือน/ประเภท/คดี"""
-    query = select(CalendarEvent)
+    tenant_filters = build_tenant_filter(CalendarEvent, tenant_id)
+    query = select(CalendarEvent).where(*tenant_filters)
 
     # Filter by month/year
     if year and month:
@@ -152,7 +155,8 @@ async def list_events(
 @router.get("/stats")
 async def get_calendar_stats(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """สถิติปฏิทิน — จำนวนตามประเภท, วันนี้, สัปดาห์นี้"""
     now = datetime.utcnow()
@@ -160,18 +164,18 @@ async def get_calendar_stats(
     today_end = today_start + timedelta(days=1)
     week_end = today_start + timedelta(days=7)
     month_end = today_start + timedelta(days=30)
+    tenant_filters = build_tenant_filter(CalendarEvent, tenant_id)
 
     # Total events
-    total_result = await db.execute(select(func.count(CalendarEvent.id)))
+    total_result = await db.execute(select(func.count(CalendarEvent.id)).where(*tenant_filters))
     total = total_result.scalar()
 
     # Today's events
     today_result = await db.execute(
         select(func.count(CalendarEvent.id)).where(
-            and_(
-                CalendarEvent.start_datetime >= today_start,
-                CalendarEvent.start_datetime < today_end
-            )
+            *tenant_filters,
+            CalendarEvent.start_datetime >= today_start,
+            CalendarEvent.start_datetime < today_end,
         )
     )
     today_count = today_result.scalar()
@@ -179,10 +183,9 @@ async def get_calendar_stats(
     # This week
     week_result = await db.execute(
         select(func.count(CalendarEvent.id)).where(
-            and_(
-                CalendarEvent.start_datetime >= today_start,
-                CalendarEvent.start_datetime < week_end
-            )
+            *tenant_filters,
+            CalendarEvent.start_datetime >= today_start,
+            CalendarEvent.start_datetime < week_end,
         )
     )
     week_count = week_result.scalar()
@@ -190,10 +193,9 @@ async def get_calendar_stats(
     # Next 30 days
     month_result = await db.execute(
         select(func.count(CalendarEvent.id)).where(
-            and_(
-                CalendarEvent.start_datetime >= today_start,
-                CalendarEvent.start_datetime < month_end
-            )
+            *tenant_filters,
+            CalendarEvent.start_datetime >= today_start,
+            CalendarEvent.start_datetime < month_end,
         )
     )
     month_count = month_result.scalar()
@@ -330,7 +332,8 @@ async def get_event(
 async def create_event(
     payload: EventCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """สร้างนัดหมายใหม่"""
     # Map event_type string to Enum
@@ -371,6 +374,7 @@ async def create_event(
         case_id=case_id,
         created_by=user_uuid,
         attendees=payload.attendees,
+        tenant_id=tenant_id,
     )
 
     db.add(event)

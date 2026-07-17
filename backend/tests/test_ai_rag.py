@@ -39,12 +39,19 @@ class TestAIRAG:
         assert "Successfully seeded" in data["message"] or "already has" in data["message"]
 
     async def test_legal_research_rag_fallback(self, test_client: AsyncClient, auth_headers: dict):
-        """ทดสอบการใช้งาน Legal Research RAG แม้ยังไม่มีฐานข้อมูล (Fallback)"""
+        """ทดสอบการใช้งาน Legal Research RAG แม้ยังไม่มีฐานข้อมูล (Fallback)
+        
+        Note: credit check is bypassed via mock since test tenant has no credits.
+        AI credit logic is separately tested in test_ai_credits.py.
+        """
         payload = {
             "question": "กู้ยืมเงินทางไลน์ไม่มีสัญญาฟ้องร้องได้ไหม",
             "category": "คดีแพ่ง"
         }
-        resp = await test_client.post("/api/v1/ai/legal-research", json=payload, headers=auth_headers)
+        # Mock the credit check/deduct function so test runs without a tenant with credits
+        with patch("app.api.routes.ai_assistant.check_and_deduct_ai_credits", new_callable=AsyncMock) as mock_credits:
+            mock_credits.return_value = (100, 100)  # (remaining, total)
+            resp = await test_client.post("/api/v1/ai/legal-research", json=payload, headers=auth_headers)
         assert resp.status_code == 200, f"RAG failed: {resp.text}"
         data = resp.json()
         assert data["status"] == "success"

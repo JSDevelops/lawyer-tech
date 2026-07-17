@@ -11,6 +11,7 @@ from datetime import date
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_tenant_id, build_tenant_filter
 from app.models.models import Client, Case, CaseStatus, CaseCategory, CalendarEvent, Invoice, InvoiceStatus, TimeEntry
 
 router = APIRouter()
@@ -70,9 +71,11 @@ async def list_cases(
     page: int = Query(1, ge=1), 
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
-    query = select(Case)
+    tenant_filters = build_tenant_filter(Case, tenant_id)
+    query = select(Case).where(*tenant_filters)
     if status:
         query = query.where(Case.status == status)
     if category:
@@ -128,7 +131,7 @@ async def list_cases(
 
 
 @router.post("/")
-async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user), tenant_id=Depends(get_tenant_id)):
     data_dict = req.model_dump()
     # Convert string IDs to UUID
     if isinstance(data_dict.get("client_id"), str):
@@ -140,7 +143,7 @@ async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), curre
             data_dict["responsible_lawyer_phone"] = req.responsible_lawyers[0].phone
             data_dict["responsible_lawyer_line"] = req.responsible_lawyers[0].line
             
-    case = Case(case_number=gen_case_number(), **data_dict)
+    case = Case(case_number=gen_case_number(), tenant_id=tenant_id, **data_dict)
     db.add(case)
     await db.flush()
     return {
@@ -153,12 +156,13 @@ async def create_case(req: CaseCreate, db: AsyncSession = Depends(get_db), curre
 
 
 @router.get("/{case_id}")
-async def get_case(case_id: str, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+async def get_case(case_id: str, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user), tenant_id=Depends(get_tenant_id)):
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
         raise HTTPException(404, "ไม่พบคดี")
-    result = await db.execute(select(Case).where(Case.id == case_uuid))
+    tenant_filters = build_tenant_filter(Case, tenant_id)
+    result = await db.execute(select(Case).where(Case.id == case_uuid, *tenant_filters))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -203,14 +207,16 @@ async def update_case(
     case_id: str,
     req: CaseUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """แก้ไขรายละเอียดคดีทั้งหมด"""
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
         raise HTTPException(404, "ไม่พบคดี")
-    result = await db.execute(select(Case).where(Case.id == case_uuid))
+    tenant_filters = build_tenant_filter(Case, tenant_id)
+    result = await db.execute(select(Case).where(Case.id == case_uuid, *tenant_filters))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -251,13 +257,15 @@ async def update_case_status(
     case_id: str, 
     status: CaseStatus,
     db: AsyncSession = Depends(get_db), 
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
         raise HTTPException(404, "ไม่พบคดี")
-    result = await db.execute(select(Case).where(Case.id == case_uuid))
+    tenant_filters = build_tenant_filter(Case, tenant_id)
+    result = await db.execute(select(Case).where(Case.id == case_uuid, *tenant_filters))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")
@@ -269,14 +277,16 @@ async def update_case_status(
 async def delete_case(
     case_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
+    tenant_id=Depends(get_tenant_id),
 ):
     """ลบคดีออกจากระบบ"""
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
         raise HTTPException(404, "ไม่พบคดี")
-    result = await db.execute(select(Case).where(Case.id == case_uuid))
+    tenant_filters = build_tenant_filter(Case, tenant_id)
+    result = await db.execute(select(Case).where(Case.id == case_uuid, *tenant_filters))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(404, "ไม่พบคดี")

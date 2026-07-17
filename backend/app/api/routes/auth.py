@@ -53,14 +53,19 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     db.add(user)
     await db.flush()
     
-    token = create_access_token({"sub": str(user.id), "role": user.role.value})
+    token = create_access_token({
+        "sub": str(user.id),
+        "role": user.role.value,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+    })
     return {
         "access_token": token,
         "user": {
             "id": str(user.id),
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value
+            "role": user.role.value,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         }
     }
 
@@ -77,7 +82,11 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="บัญชีถูกระงับการใช้งาน")
     
-    token = create_access_token({"sub": str(user.id), "role": user.role.value})
+    token = create_access_token({
+        "sub": str(user.id),
+        "role": user.role.value,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+    })
     return {
         "access_token": token,
         "user": {
@@ -85,7 +94,8 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             "email": user.email,
             "full_name": user.full_name,
             "role": user.role.value,
-            "avatar_url": user.avatar_url
+            "avatar_url": user.avatar_url,
+            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         }
     }
 
@@ -122,6 +132,7 @@ async def get_me(current_user=Depends(get_current_user), db: AsyncSession = Depe
         "phone": user.phone,
         "avatar_url": user.avatar_url,
         "bar_number": user.bar_number,
+        "tenant_id": str(user.tenant_id) if user.tenant_id else None,
         "ai_credits_remaining": ai_credits_remaining,
         "ai_credits_total": ai_credits_total,
     }
